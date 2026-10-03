@@ -66,6 +66,7 @@ class ApiConfig {
   static String get authResetPassword => '$baseUrl/auth/reset-password';
   static String get authGoogle => '$baseUrl/auth/google';
   static const String googleServerClientId = '546116812966-hr7pd2htl3e2na61skqmihg7jkbdf9m8.apps.googleusercontent.com';
+  static const String googleIosClientId = '546116812966-aijkt8hrbhaue2uaj2d5cbem1nlspa9v.apps.googleusercontent.com';
 
   static String get usersMe => '$baseUrl/users/me';
   static String get usersAll => '$baseUrl/users';

@@ -176,23 +176,45 @@ class AuthService {
     return user;
   }
 
+  static String? get _configuredClientId {
+    if (kIsWeb) return ApiConfig.googleServerClientId;
+    try {
+      if (Platform.isIOS) return ApiConfig.googleIosClientId;
+    } catch (_) {}
+    return null;
+  }
+
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: _configuredClientId,
     serverClientId: ApiConfig.googleServerClientId,
     scopes: ['email', 'profile'],
   );
 
-  /// Inicia sesion o registra al usuario mediante Google OAuth2
+  /// Inicia sesion o registra al usuario mediante Google OAuth2 con blindaje multiplataforma
   static Future<UserModel?> loginWithGoogle() async {
+    // 1. Validar compatibilidad en plataformas de escritorio (Windows, Linux, macOS)
+    if (!kIsWeb) {
+      try {
+        if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+          throw ApiException(
+            'El inicio de sesión directo con Google está disponible en móviles (Android / iOS) y Web. En PC/Laptop de escritorio, por favor inicia sesión con tu correo o DNI y contraseña.',
+          );
+        }
+      } catch (e) {
+        if (e is ApiException) rethrow;
+      }
+    }
+
     try {
       try {
         await _googleSignIn.signOut();
       } catch (_) {}
       final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      if (googleUser == null) return null; // Cancelado por el usuario
       final googleAuth = await googleUser.authentication;
       final idToken = googleAuth.idToken;
       if (idToken == null || idToken.isEmpty) {
-        throw ApiException('No se pudo obtener el token de verificacion de Google.');
+        throw ApiException('No se pudo obtener el token de verificación de Google. Inténtalo nuevamente.');
       }
       final response = await ApiClient.post(
         ApiConfig.authGoogle,
@@ -210,8 +232,29 @@ class AuthService {
       return user;
     } catch (e) {
       if (e is ApiException) rethrow;
-      debugPrint('Error en login con Google: $e');
-      throw ApiException('Error al iniciar sesion con Google: ' + e.toString().replaceAll('Exception:', '').trim());
+      final errorStr = e.toString();
+      debugPrint('Error en login con Google: ');
+      if (errorStr.contains('10') || errorStr.contains('DEVELOPER_ERROR')) {
+        throw ApiException(
+          'Configuración de Google no reconocida (SHA-1 no registrado para este dispositivo). Ingrese con correo o DNI y contraseña.',
+        );
+      }
+      if (errorStr.contains('12500') || errorStr.contains('SIGN_IN_FAILED')) {
+        throw ApiException(
+          'No se pudo iniciar sesión con Google en este dispositivo. Verifica que tenga Servicios de Google Play actualizados o una cuenta de Google activa.',
+        );
+      }
+      if (errorStr.contains('network') || errorStr.contains('SocketException') || errorStr.contains('Failed to connect')) {
+        throw ApiException(
+          'Error de red al conectar con Google. Verifica tu conexión a internet.',
+        );
+      }
+      if (errorStr.contains('MissingPluginException')) {
+        throw ApiException(
+          'Esta plataforma no admite el botón de Google. Inicia sesión con tu correo o DNI y contraseña.',
+        );
+      }
+      throw ApiException('Error al iniciar sesión con Google: ${errorStr.replaceAll('Exception:', '').replaceAll('PlatformException(', '').trim()}');
     }
   }
 

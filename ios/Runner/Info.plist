@@ -83,5 +83,18 @@
 	<!-- Permisos para Biometría / Face ID (Local Auth) -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>Se requiere autenticación biométrica para verificar tu identidad de forma segura.</string>
+	<!-- Esquema de URL invertido para autenticación con Google en iOS / iPadOS -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.546116812966-aijkt8hrbhaue2uaj2d5cbem1nlspa9v</string>
+				<string>com.googleusercontent.apps.546116812966-hr7pd2htl3e2na61skqmihg7jkbdf9m8</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
