@@ -33,6 +33,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   bool _isLoading = false;
   Timer? _liveRefreshTimer;
   List<Map<String, dynamic>> _assignedManagers = [];
+  int _selectedTab = 0;
+  String _attendeeSearchQuery = '';
 
   @override
   void initState() {
@@ -325,36 +327,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _handleDirectRegisterAttendance() async {
-    setState(() => _isLoading = true);
-    try {
-      final updated = await EventService.registerAttendance(
-        eventId: _currentEvent.id,
-        qrCode: _currentEvent.qrCode,
-      );
-      if (mounted) {
-        setState(() => _currentEvent = updated);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Asistencia confirmada exitosamente!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -659,6 +631,525 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  void _handleOpenQrDisplay() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventQrDisplayScreen(
+          event: _currentEvent,
+          initialMode: EventQrMode.registered,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabItem({
+    required int index,
+    required IconData icon,
+    required String label,
+    int? badgeCount,
+  }) {
+    final isSelected = _selectedTab == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const activeColor = Color(0xFF34D399);
+    final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = index),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? activeColor : Colors.transparent,
+                width: 2.5,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: isSelected ? activeColor : inactiveColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? (isDark ? Colors.white : const Color(0xFF0F172A)) : inactiveColor,
+                ),
+              ),
+              if (badgeCount != null) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF064E3B) : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? activeColor : inactiveColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required Color iconBgColor,
+    required String label,
+    required String value,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconBgColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: iconBgColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDescriptionContent(bool isDark) {
+    if (_currentEvent.description.trim().isEmpty) {
+      return Text(
+        'Sin descripción o temario especificado para este evento.',
+        style: TextStyle(
+          fontSize: 13,
+          fontStyle: FontStyle.italic,
+          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+        ),
+      );
+    }
+
+    final lines = _currentEvent.description
+        .split(RegExp(r'[\r\n]+'))
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    if (lines.length > 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: lines.map((line) {
+          final cleanText = line.startsWith('-') || line.startsWith('•') || line.startsWith('*')
+              ? line.substring(1).trim()
+              : line;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF34D399),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    cleanText,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    return Text(
+      _currentEvent.description,
+      style: TextStyle(
+        fontSize: 13.5,
+        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+        height: 1.5,
+      ),
+    );
+  }
+
+  Widget _buildManagersCard(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111827) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFF0D9488).withValues(alpha: isDark ? 0.4 : 0.25),
+          width: 1.3,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.manage_accounts_rounded, color: Color(0xFF0D9488), size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Gestores del Evento',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: isDark ? Colors.white : const Color(0xFF134E4A),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D9488).withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_currentEvent.managerIds.length} Asignados',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0D9488),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Colaboradores facultados para administrar el evento y proyectar códigos QR.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: isDark ? const Color(0xFF99F6E4) : const Color(0xFF115E59),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_assignedManagers.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _assignedManagers.map((m) {
+                final name = m['full_name'] ?? m['name'] ?? 'Gestor';
+                final userId = m['id'] ?? '';
+                return Chip(
+                  avatar: CircleAvatar(
+                    backgroundColor: const Color(0xFF0D9488),
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : 'G',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  label: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  deleteIcon: const Icon(Icons.close_rounded, size: 16),
+                  onDeleted: () => _handleRemoveManager(userId, name),
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  side: BorderSide(color: const Color(0xFF0D9488).withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D9488),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _handleOpenAssignManagerModal,
+                  icon: const Icon(Icons.person_add_rounded, size: 17),
+                  label: const Text('+ Asignar Gestor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0D9488),
+                    side: const BorderSide(color: Color(0xFF0D9488)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _handleDesignateManagerQr,
+                  icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                  label: const Text('Designar con QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilteredAttendeesList(bool isDark, bool canManage) {
+    final q = _attendeeSearchQuery.trim().toLowerCase();
+    final attendees = _currentEvent.attendees.where((a) {
+      if (q.isEmpty) return true;
+      return a.userName.toLowerCase().contains(q) ||
+          (a.documentNumber != null && a.documentNumber!.toLowerCase().contains(q)) ||
+          (a.shift != null && a.shift!.toLowerCase().contains(q)) ||
+          a.userEmail.toLowerCase().contains(q);
+    }).toList();
+
+    if (attendees.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF111827) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.people_outline_rounded, size: 36, color: ThemeService.subtextColor(context)),
+              const SizedBox(height: 10),
+              Text(
+                q.isEmpty
+                    ? 'Aún no hay participantes registrados en este evento.'
+                    : 'No se encontraron participantes que coincidan con "$q".',
+                style: TextStyle(fontSize: 13, color: ThemeService.subtextColor(context)),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: attendees.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final attendee = attendees[index];
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF111827) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFF34D399).withValues(alpha: 0.15),
+                radius: 18,
+                child: Text(
+                  attendee.userName.isNotEmpty ? attendee.userName[0].toUpperCase() : 'P',
+                  style: const TextStyle(
+                    color: Color(0xFF34D399),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            attendee.userName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (attendee.isExternal) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'EXTERNO',
+                              style: TextStyle(
+                                color: Color(0xFF0284C7),
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (attendee.shift != null && attendee.shift!.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: (attendee.shift == 'manana'
+                                      ? const Color(0xFFF59E0B)
+                                      : attendee.shift == 'tarde'
+                                          ? const Color(0xFFF97316)
+                                          : const Color(0xFF6366F1))
+                                  .withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              attendee.shift == 'manana'
+                                  ? 'MAÑANA'
+                                  : attendee.shift == 'tarde'
+                                      ? 'TARDE'
+                                      : attendee.shift == 'noche'
+                                          ? 'NOCHE'
+                                          : attendee.shift!.toUpperCase(),
+                              style: TextStyle(
+                                color: attendee.shift == 'manana'
+                                    ? const Color(0xFFF59E0B)
+                                    : attendee.shift == 'tarde'
+                                        ? const Color(0xFFF97316)
+                                        : const Color(0xFF6366F1),
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      attendee.isExternal || (attendee.documentNumber != null && attendee.documentNumber!.isNotEmpty)
+                          ? [
+                              if (attendee.documentNumber != null && attendee.documentNumber!.isNotEmpty)
+                                'DNI: ${attendee.documentNumber}',
+                              if (attendee.phoneNumber != null && attendee.phoneNumber!.isNotEmpty)
+                                'Cel: ${attendee.phoneNumber}',
+                              if (attendee.career != null && attendee.career!.isNotEmpty)
+                                attendee.career!,
+                              if (attendee.institution != null && attendee.institution!.isNotEmpty)
+                                attendee.institution!,
+                            ].join(' • ')
+                          : '${attendee.userDepartment ?? attendee.userPosition ?? attendee.userEmail} • ${_formatAttendeeTime(attendee.registeredAt)}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: ThemeService.subtextColor(context),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 19,
+                    color: Color(0xFFEF4444),
+                  ),
+                  tooltip: 'Eliminar participante del evento',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: _isLoading ? null : () => _handleRemoveAttendee(attendee),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _fetchEventDetails() async {
+    try {
+      final events = await EventService.getEvents(forceRefresh: true);
+      final found = events.firstWhere((e) => e.id == _currentEvent.id, orElse: () => _currentEvent);
+      if (mounted) {
+        setState(() => _currentEvent = found);
+        await _loadManagers();
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -666,23 +1157,41 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final currentUser = StorageService.currentUser;
     final isSuperAdmin = currentUser?.isSuperAdmin == true;
     final isAdmin = currentUser?.isAdmin == true || isSuperAdmin;
-    final isSupervisor = currentUser?.isSupervisor == true;
     final isAssignedManager = currentUser != null && _currentEvent.managerIds.contains(currentUser.id);
     final canManage = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
     final canProjectQr = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
     final canScanAttendance = !isAdmin && !isSuperAdmin && !isAssignedManager;
     final isAlreadyRegistered = currentUser != null && _currentEvent.isUserRegistered(currentUser.id);
 
+    // Paleta de colores idéntica al nuevo diseño solicitado
+    final bgColor = isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    const mintGreen = Color(0xFF34D399);
+    const darkGreen = Color(0xFF064E3B);
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('Detalle del Evento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: bgColor,
         elevation: 0,
-        backgroundColor: ThemeService.cardBg(context),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Detalle Del Evento',
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           if (canManage) ...[
             IconButton(
               tooltip: 'Editar evento',
-              icon: const Icon(Icons.edit_outlined),
+              icon: Icon(Icons.edit_outlined, color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569), size: 20),
               onPressed: () async {
                 final updated = await Navigator.of(context).push(
                   MaterialPageRoute(
@@ -690,972 +1199,585 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
                 );
                 if (updated == true) {
-                  // Actualizado
+                  await _fetchEventDetails();
                 }
               },
             ),
             IconButton(
               tooltip: 'Eliminar evento',
-              icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
+              icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFF87171), size: 22),
               onPressed: _confirmDelete,
             ),
           ],
+          Padding(
+            padding: const EdgeInsets.only(right: 16, left: 4),
+            child: CircleAvatar(
+              radius: 17,
+              backgroundColor: mintGreen,
+              child: const Icon(Icons.person, color: darkGreen, size: 20),
+            ),
+          ),
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: Responsive.constrained(
-            context,
-            maxTabletWidth: 800,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Cabecera del Evento
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: ThemeService.cardBg(context),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: ThemeService.cardBorder(context)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        child: RefreshIndicator(
+          color: mintGreen,
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          onRefresh: _fetchEventDetails,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Responsive.constrained(
+              context,
+              maxTabletWidth: 760,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. FILA DE BADGES SUPERIORES
+                  Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: ThemeService.primaryColor(context).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.event_rounded, size: 14, color: ThemeService.primaryColor(context)),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      _currentEvent.type.displayName,
-                                      style: TextStyle(
-                                        color: ThemeService.primaryColor(context),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_currentEvent.organizationalUnit != null &&
-                                  _currentEvent.organizationalUnit!.trim().isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.apartment_rounded, size: 14, color: Color(0xFF2563EB)),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        'UO: ${_currentEvent.organizationalUnit!.trim()}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF2563EB),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _currentEvent.isActiveNow
-                                  ? const Color(0xFF16A34A).withValues(alpha: 0.15)
-                                  : const Color(0xFF64748B).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  size: 8,
-                                  color: _currentEvent.isActiveNow ? const Color(0xFF16A34A) : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  _currentEvent.isActiveNow ? 'En Curso' : _currentEvent.status.displayName,
-                                  style: TextStyle(
-                                    color: _currentEvent.isActiveNow ? const Color(0xFF16A34A) : const Color(0xFF64748B),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        _currentEvent.title,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          height: 1.3,
+                      // Badge de Tipo de Evento
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF064E3B).withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Divider(height: 1),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        context,
-                        icon: Icons.access_time_rounded,
-                        label: 'Inicio',
-                        value: _formatDateTime(_currentEvent.startDate),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildInfoRow(
-                        context,
-                        icon: Icons.event_available_rounded,
-                        label: 'Culminaci�n',
-                        value: _formatDateTime(_currentEvent.endDate),
-                      ),
-                      if (_currentEvent.shifts.where((s) => s.enabled).isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _buildShiftsInfoRow(
-                          context,
-                          _currentEvent.shifts.where((s) => s.enabled).toList(),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      _buildInfoRow(
-                        context,
-                        icon: Icons.location_on_rounded,
-                        label: 'Ubicación',
-                        value: _currentEvent.location,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildInfoRow(
-                        context,
-                        icon: Icons.person_outline_rounded,
-                        label: 'Organizador',
-                        value: '${_currentEvent.createdByName} (${_currentEvent.createdByRole})',
-                      ),
-                      const SizedBox(height: 14),
-                      const Divider(height: 1),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 11),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            side: BorderSide(color: ThemeService.primaryColor(context).withValues(alpha: 0.4)),
-                          ),
-                          onPressed: _handleAddToCalendar,
-                          icon: Icon(Icons.calendar_month_rounded, size: 18, color: ThemeService.primaryColor(context)),
-                          label: Text(
-                            'Añadir a mi Calendario',
-                            style: TextStyle(
-                              color: ThemeService.primaryColor(context),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Sección Asistencia / Acciones Rápidas
-                if (_currentEvent.requiresAttendance) ...[
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isDark
-                            ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                            : [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: ThemeService.primaryColor(context).withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryColor(context).withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(10),
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: mintGreen,
+                                shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.how_to_reg_rounded, color: ThemeService.primaryColor(context), size: 22),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Control de Asistencia del Evento',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14.5,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${_currentEvent.attendees.length} asistentes registrados hasta el momento.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(width: 6),
+                            Text(
+                              _currentEvent.type.displayName,
+                              style: const TextStyle(
+                                color: mintGreen,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(width: 8),
 
-                        const SizedBox(height: 16),
+                      // Badge de Estado del Evento
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          _currentEvent.status.displayName,
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
 
-                        // 1. Opciones de Registro / Escaneo de Asistencia (Solo Supervisor y Usuario regular)
-                        if (canScanAttendance) ...[
-                          if (isAlreadyRegistered) ...[
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF16A34A).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.5)),
+                      // Badge Oficial IIAP
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF064E3B).withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.45)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified_outlined, color: mintGreen, size: 14),
+                            SizedBox(width: 5),
+                            Text(
+                              'Oficial IIAP',
+                              style: TextStyle(
+                                color: mintGreen,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                               ),
-                              child: Column(
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 22),
-                                      SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          '¡Tu asistencia a este evento ya está confirmada!',
-                                          style: TextStyle(
-                                            color: Color(0xFF16A34A),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF16A34A),
-                                        foregroundColor: Colors.white,
-                                        elevation: 1,
-                                        padding: const EdgeInsets.symmetric(vertical: 11),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      ),
-                                      onPressed: _handleViewCertificate,
-                                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                                      label: const Text(
-                                        'Ver Mi Constancia de Asistencia (PDF)',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            // Botón para escanear asistencia
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: ThemeService.primaryColor(context),
-                                      padding: const EdgeInsets.symmetric(vertical: 13),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    onPressed: _handleScanAttendance,
-                                    icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
-                                    label: const Text(
-                                      'Escanear QR de Asistencia',
-                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                    ),
-                                  ),
-                                ),
-                                if (isSupervisor) ...[
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    tooltip: 'Confirmar asistencia directa',
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    icon: _isLoading
-                                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                        : const Icon(Icons.playlist_add_check_rounded),
-                                    onPressed: _isLoading ? null : _handleDirectRegisterAttendance,
-                                  ),
-                                ],
-                              ],
                             ),
                           ],
-                        ],
-
-                        // 2. Proyectar/Mostrar QR del Evento: Dos opciones (Usuario Registrado y Usuario Externo)
-                        if (canProjectQr) ...[
-                          if (canScanAttendance) const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Icon(Icons.qr_code_2_rounded, size: 18, color: ThemeService.primaryColor(context)),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Proyección de Asistencia (2 Modalidades)',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final isWide = constraints.maxWidth >= 520;
-                              final card1 = _buildQrOptionCard(
-                                context: context,
-                                title: 'Usuario Registrado',
-                                badge: 'Con App IIAP',
-                                badgeColor: const Color(0xFF16A34A),
-                                icon: Icons.phone_android_rounded,
-                                description:
-                                    'Para colaboradores que tienen la aplicación instalada y su cuenta institucional activa. Al escanearlo, su asistencia queda confirmada al instante.',
-                                buttonText: 'Proyectar QR Registrados',
-                                buttonColor: const Color(0xFF16A34A),
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => EventQrDisplayScreen(
-                                        event: _currentEvent,
-                                        initialMode: EventQrMode.registered,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-
-                              final card2 = _buildQrOptionCard(
-                                context: context,
-                                title: 'Usuario Externo',
-                                badge: 'Sin App / Formulario Web',
-                                badgeColor: const Color(0xFF0284C7),
-                                icon: Icons.language_rounded,
-                                description:
-                                    'Para personas que no tienen la app ni cuenta. Al escanear con su cámara, se abre el formulario web en su navegador y al registrarse aparecen aquí.',
-                                buttonText: 'Proyectar QR Externo',
-                                buttonColor: const Color(0xFF0284C7),
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => EventQrDisplayScreen(
-                                        event: _currentEvent,
-                                        initialMode: EventQrMode.external,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-
-                              if (isWide) {
-                                return Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(child: card1),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: card2),
-                                  ],
-                                );
-                              } else {
-                                return Column(
-                                  children: [
-                                    card1,
-                                    const SizedBox(height: 12),
-                                    card2,
-                                  ],
-                                );
-                              }
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                ],
+                  const SizedBox(height: 14),
 
-                // Descripción
-                if (_currentEvent.description.isNotEmpty) ...[
+                  // 2. TÍTULO DEL EVENTO
                   Text(
-                    'Descripción y Temario',
+                    _currentEvent.title,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                      height: 1.25,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: ThemeService.cardBg(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: ThemeService.cardBorder(context)),
-                    ),
-                    child: Text(
-                      _currentEvent.description,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
 
-                // 2.5 Tarjeta destacada: Gestores del Evento (Sin Límites)
-                if (canManage) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isDark
-                            ? [const Color(0xFF132A27), const Color(0xFF0F172A)]
-                            : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xFF0D9488).withValues(alpha: isDark ? 0.5 : 0.35),
-                        width: 1.3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0D9488).withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                  // 3. SUBTÍTULO (Fecha de Inicio • Asistentes)
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 14, color: mintGreen),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatDateTime(_currentEvent.startDate),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: mintGreen,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0D9488).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.manage_accounts_rounded, color: Color(0xFF0D9488), size: 22),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Gestores del Evento',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: isDark ? Colors.white : const Color(0xFF134E4A),
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF0D9488).withValues(alpha: 0.18),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '${_currentEvent.managerIds.length} Asignados · Sin Límites',
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0D9488),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Colaboradores facultados para administrar el evento, proyectar códigos QR y tomar asistencias.',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      height: 1.35,
-                                      color: isDark ? const Color(0xFF99F6E4) : const Color(0xFF115E59),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '•',
+                        style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.people_outline_rounded, size: 16, color: mintGreen),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_currentEvent.attendees.length} Asistentes',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: mintGreen,
                         ),
-                        if (_assignedManagers.isNotEmpty) ...[
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _assignedManagers.map((m) {
-                              final name = m['full_name'] ?? m['name'] ?? 'Gestor';
-                              final userId = m['id'] ?? '';
-                              return Chip(
-                                avatar: CircleAvatar(
-                                  backgroundColor: const Color(0xFF0D9488),
-                                  child: Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : 'G',
-                                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                label: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                deleteIcon: const Icon(Icons.close_rounded, size: 16),
-                                onDeleted: () => _handleRemoveManager(userId, name),
-                                backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                side: BorderSide(color: const Color(0xFF0D9488).withValues(alpha: 0.3)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              );
-                            }).toList(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 4. DOS BOTONES DE ACCIÓN PRINCIPALES (Proyectar QR | Registro Manual)
+                  Row(
+                    children: [
+                      // Botón 1: Proyectar QR
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: mintGreen,
+                            foregroundColor: darkGreen,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                        ] else ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Actualmente no hay gestores adicionales. Agrega colaboradores sin límites para apoyar en el evento.',
+                          onPressed: _handleOpenQrDisplay,
+                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: darkGreen),
+                          label: const Text(
+                            'Proyectar QR',
                             style: TextStyle(
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: darkGreen,
                             ),
                           ),
-                        ],
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0D9488),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                onPressed: _handleOpenAssignManagerModal,
-                                icon: const Icon(Icons.person_add_rounded, size: 17),
-                                label: const Text('+ Asignar Gestor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Botón 2: Registro Manual
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            foregroundColor: const Color(0xFFF59E0B),
+                            elevation: 0,
+                            side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          onPressed: canManage ? _handleManualRegisterAttendee : null,
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 19, color: Color(0xFFF59E0B)),
+                          label: const Text(
+                            'Registro Manual',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF59E0B),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF0D9488),
-                                  side: const BorderSide(color: Color(0xFF0D9488)),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                onPressed: _handleDesignateManagerQr,
-                                icon: const Icon(Icons.qr_code_2_rounded, size: 17),
-                                label: const Text('Designar con QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              ),
-                            ),
-                          ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // 5. BARRA DE NAVEGACIÓN DE 3 PESTAÑAS (TABS)
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildTabItem(
+                          index: 0,
+                          icon: Icons.info_outline_rounded,
+                          label: 'Info & Temario',
+                        ),
+                        _buildTabItem(
+                          index: 1,
+                          icon: Icons.qr_code_scanner_rounded,
+                          label: 'Control & QR',
+                        ),
+                        _buildTabItem(
+                          index: 2,
+                          icon: Icons.people_outline_rounded,
+                          label: 'Participantes',
+                          badgeCount: _currentEvent.attendees.length,
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 18),
-                ],
 
-                // 3. Tarjeta destacada: Registro Presencial para personas sin celular
-                if (canManage) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isDark
-                            ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                            : [const Color(0xFFFFFBEB), const Color(0xFFFEF3C7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                  // 6. CONTENIDO SEGÚN LA PESTAÑA ACTIVA
+                  if (_selectedTab == 0) ...[
+                    // PESTAÑA 0: Info & Temario
+                    // Tarjeta 1: Fechas, Ubicación y Organizador
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: cardBorder),
                       ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xFFD97706).withValues(alpha: isDark ? 0.45 : 0.35),
-                        width: 1.3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFD97706).withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFD97706).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.no_cell_rounded, color: Color(0xFFD97706), size: 20),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Registro Presencial (Participante Sin Celular)',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13.5,
-                                      color: isDark ? Colors.white : const Color(0xFF92400E),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Si la persona no cuenta con smartphone o internet, regístrala aquí con su DNI para figurar de inmediato en la lista oficial.',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      height: 1.35,
-                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF78350F),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD97706),
-                              foregroundColor: Colors.white,
-                              elevation: 1,
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: _handleManualRegisterAttendee,
-                            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                            label: const Text(
-                              'Registrar Asistente Manualmente (Sin Celular)',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                ],
-
-                // Lista de Asistentes Registrados
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Participantes Registrados (${_currentEvent.attendees.length})',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (canManage) ...[
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ThemeService.primaryColor(context),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: _handleManualRegisterAttendee,
-                        icon: const Icon(Icons.add_rounded, size: 16),
-                        label: const Text(
-                          '+ Agregar',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                if (_currentEvent.attendees.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: ThemeService.cardBg(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: ThemeService.cardBorder(context)),
-                    ),
-                    child: Center(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.people_outline_rounded, size: 36, color: ThemeService.subtextColor(context)),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Aún no hay participantes registrados en este evento.',
-                            style: TextStyle(fontSize: 13, color: ThemeService.subtextColor(context)),
-                            textAlign: TextAlign.center,
+                          _buildInfoItem(
+                            icon: Icons.calendar_today_rounded,
+                            iconBgColor: const Color(0xFF0D9488),
+                            label: 'FECHA DE INICIO',
+                            value: _formatDateTime(_currentEvent.startDate),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoItem(
+                            icon: Icons.event_repeat_rounded,
+                            iconBgColor: const Color(0xFF0284C7),
+                            label: 'CULMINACIÓN',
+                            value: _formatDateTime(_currentEvent.endDate),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoItem(
+                            icon: Icons.location_on_outlined,
+                            iconBgColor: const Color(0xFF10B981),
+                            label: 'UBICACIÓN',
+                            value: _currentEvent.location,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoItem(
+                            icon: Icons.shield_outlined,
+                            iconBgColor: const Color(0xFFF59E0B),
+                            label: 'ORGANIZADOR',
+                            value: '${_currentEvent.createdByName} (${_currentEvent.createdByRole.toUpperCase()})',
+                          ),
+                          if (_currentEvent.shifts.where((s) => s.enabled).isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _buildShiftsInfoRow(context, _currentEvent.shifts.where((s) => s.enabled).toList()),
+                          ],
+                          const SizedBox(height: 20),
+
+                          // Botón Añadir a mi Calendario
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                foregroundColor: mintGreen,
+                                elevation: 0,
+                                side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              onPressed: _handleAddToCalendar,
+                              icon: const Icon(Icons.calendar_month_outlined, color: mintGreen, size: 19),
+                              label: const Text(
+                                'Añadir a mi Calendario',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.5,
+                                  color: mintGreen,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _currentEvent.attendees.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final attendee = _currentEvent.attendees[index];
-                      return Container(
-                        padding: const EdgeInsets.all(12),
+                    const SizedBox(height: 16),
+
+                    // Tarjeta 2: Descripción y Temario
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.description_outlined, color: mintGreen, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Descripción y Temario',
+                                style: TextStyle(
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                            ),
+                            child: _buildDescriptionContent(isDark),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Banner de Constancia de Asistencia si ya está acreditado
+                    if (isAlreadyRegistered) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: ThemeService.cardBg(context),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: ThemeService.cardBorder(context)),
+                          color: const Color(0xFF064E3B).withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: mintGreen.withValues(alpha: 0.5)),
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              backgroundColor: ThemeService.primaryColor(context).withValues(alpha: 0.15),
-                              radius: 18,
-                              child: Text(
-                                attendee.userName.isNotEmpty ? attendee.userName[0].toUpperCase() : 'P',
-                                style: TextStyle(
-                                  color: ThemeService.primaryColor(context),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: mintGreen.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
                               ),
+                              child: const Icon(Icons.verified_rounded, color: mintGreen, size: 24),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          attendee.userName,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (attendee.isExternal) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF0284C7).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: const Text(
-                                            'EXTERNO',
-                                            style: TextStyle(
-                                              color: Color(0xFF0284C7),
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                      if (attendee.shift != null && attendee.shift!.isNotEmpty) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                          decoration: BoxDecoration(
-                                            color: (attendee.shift == 'manana'
-                                                    ? const Color(0xFFF59E0B)
-                                                    : attendee.shift == 'tarde'
-                                                        ? const Color(0xFFF97316)
-                                                        : const Color(0xFF6366F1))
-                                                .withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            attendee.shift == 'manana'
-                                                ? 'MAÑANA'
-                                                : attendee.shift == 'tarde'
-                                                    ? 'TARDE'
-                                                    : attendee.shift == 'noche'
-                                                        ? 'NOCHE'
-                                                        : attendee.shift!.toUpperCase(),
-                                            style: TextStyle(
-                                              color: attendee.shift == 'manana'
-                                                  ? const Color(0xFFF59E0B)
-                                                  : attendee.shift == 'tarde'
-                                                      ? const Color(0xFFF97316)
-                                                      : const Color(0xFF6366F1),
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    attendee.isExternal || (attendee.documentNumber != null && attendee.documentNumber!.isNotEmpty)
-                                        ? [
-                                            if (attendee.documentNumber != null && attendee.documentNumber!.isNotEmpty)
-                                              'DNI: ${attendee.documentNumber}',
-                                            if (attendee.phoneNumber != null && attendee.phoneNumber!.isNotEmpty)
-                                              'Cel: ${attendee.phoneNumber}',
-                                            if (attendee.career != null && attendee.career!.isNotEmpty)
-                                              attendee.career!,
-                                            if (attendee.gender != null && attendee.gender!.isNotEmpty)
-                                              attendee.gender!,
-                                            if (attendee.age != null)
-                                              '${attendee.age} años',
-                                            if (attendee.institution != null && attendee.institution!.isNotEmpty)
-                                              attendee.institution!,
-                                            if (attendee.userEmail.isNotEmpty && attendee.documentNumber == null)
-                                              attendee.userEmail,
-                                          ].join(' • ')
-                                        : (attendee.userDepartment ?? attendee.userPosition ?? attendee.userEmail),
+                                  const Text(
+                                    '¡Tu Asistencia está Confirmada!',
                                     style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: ThemeService.subtextColor(context),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF16A34A).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(0xFF16A34A).withValues(alpha: 0.25),
-                                  width: 0.8,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.access_time_rounded,
-                                    size: 11,
-                                    color: Color(0xFF16A34A),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _formatAttendeeTime(attendee.registeredAt),
-                                    style: const TextStyle(
-                                      fontSize: 10.5,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF16A34A),
+                                      fontSize: 14,
+                                      color: mintGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Descarga tu constancia oficial en formato PDF.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            if (canManage) ...[
-                              const SizedBox(width: 4),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 19,
-                                  color: Color(0xFFEF4444),
-                                ),
-                                tooltip: 'Eliminar participante del evento',
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                onPressed: _isLoading ? null : () => _handleRemoveAttendee(attendee),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: mintGreen,
+                                foregroundColor: darkGreen,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                               ),
-                            ],
+                              onPressed: _handleViewCertificate,
+                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: darkGreen),
+                              label: const Text('Constancia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
+                            ),
                           ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ],
 
-                const SizedBox(height: 24),
-              ],
+                    // Botón para que usuario regular/supervisor escanee asistencia si está habilitado
+                    if (canScanAttendance && !isAlreadyRegistered && _currentEvent.requiresAttendance && _currentEvent.status != EventStatus.CANCELLED) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          onPressed: _handleScanAttendance,
+                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                          label: const Text(
+                            'Escanear QR de Asistencia',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else if (_selectedTab == 1) ...[
+                    // PESTAÑA 1: Control & QR
+                    if (canProjectQr) ...[
+                      _buildQrOptionCard(
+                        context: context,
+                        title: 'QR para Personal IIAP y Registrados',
+                        badge: 'SISTEMA IIAP',
+                        badgeColor: const Color(0xFF10B981),
+                        icon: Icons.domain_rounded,
+                        description: 'Proyecta el código para que los colaboradores con la app móvil confirmen su asistencia al instante.',
+                        buttonText: 'Proyectar QR Registrados',
+                        buttonColor: const Color(0xFF10B981),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => EventQrDisplayScreen(
+                                event: _currentEvent,
+                                initialMode: EventQrMode.registered,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      _buildQrOptionCard(
+                        context: context,
+                        title: 'QR para Invitados y Público Externo',
+                        badge: 'INVITADOS Y EXTERNOS',
+                        badgeColor: const Color(0xFF0284C7),
+                        icon: Icons.public_rounded,
+                        description: 'Abre el formulario web de registro público sin necesidad de tener instalada la app en el teléfono.',
+                        buttonText: 'Proyectar QR Externos',
+                        buttonColor: const Color(0xFF0284C7),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => EventQrDisplayScreen(
+                                event: _currentEvent,
+                                initialMode: EventQrMode.external,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      _buildManagersCard(context, isDark),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.security_rounded, size: 36, color: Color(0xFF64748B)),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Gestión de QR Restringida',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'La proyección y administración de códigos QR está reservada para el Organizador del evento y Gestores IIAP autorizados.',
+                              style: TextStyle(fontSize: 12.5, color: ThemeService.subtextColor(context)),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ] else ...[
+                    // PESTAÑA 2: Participantes
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '${_currentEvent.attendees.length} Registrados',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const Spacer(),
+                              if (canManage)
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: mintGreen,
+                                    foregroundColor: darkGreen,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  onPressed: _handleManualRegisterAttendee,
+                                  icon: const Icon(Icons.person_add_rounded, size: 16, color: darkGreen),
+                                  label: const Text('+ Registrar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            onChanged: (val) => setState(() => _attendeeSearchQuery = val),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar por nombre, correo, DNI...',
+                              hintStyle: TextStyle(fontSize: 12.5, color: ThemeService.subtextColor(context)),
+                              prefixIcon: Icon(Icons.search_rounded, size: 20, color: ThemeService.subtextColor(context)),
+                              filled: true,
+                              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildFilteredAttendeesList(isDark, canManage),
+                  ],
+
+                  const SizedBox(height: 36),
+                ],
+              ),
             ),
           ),
         ),
@@ -1727,38 +1849,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, {required IconData icon, required String label, required String value}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: ThemeService.primaryColor(context)),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 85,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF1E293B),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildQrOptionCard({
     required BuildContext context,
