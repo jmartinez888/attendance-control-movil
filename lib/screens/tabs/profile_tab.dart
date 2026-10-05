@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../utils/responsive.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/user_model.dart';
@@ -10,7 +9,6 @@ import '../../services/users_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/wallpaper_service.dart';
 import '../../services/api_client.dart';
-import '../../widgets/opera_gx_theme_picker.dart';
 import '../../widgets/photo_viewer_dialog.dart';
 import '../wallpaper_screen.dart';
 import '../login_screen.dart';
@@ -1278,6 +1276,9 @@ class _ProfileTabState extends State<ProfileTab> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    const mintGreen = Color(0xFF34D399);
+    const darkSlate = Color(0xFF0F172A);
+
     return ValueListenableBuilder<UserModel?>(
       valueListenable: StorageService.currentUserNotifier,
       builder: (context, user, _) {
@@ -1285,564 +1286,670 @@ class _ProfileTabState extends State<ProfileTab> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        final roleDisplayName = user.role == UserRole.ADMIN
+            ? 'ADMIN IIAP'
+            : (user.isSuperAdmin ? 'SUPERADMIN IIAP' : user.role.displayName.toUpperCase());
+
         return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF0A0F16) : theme.scaffoldBackgroundColor,
           body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Responsive.constrained(
               context,
-              maxTabletWidth: 780,
+              maxTabletWidth: 680,
               child: Column(
-              children: [
-                const SizedBox(height: 18),
+                children: [
+                  const SizedBox(height: 12),
 
-                // Avatar con Botón de Cámara (Cámara / Galería)
-                Center(
-                  child: Stack(
-                    children: [
-                      GestureDetector(
-                        onTap: () => _openPhotoViewer(user),
-                        child: Hero(
-                          tag: user.photoUrl != null && user.photoUrl!.isNotEmpty
-                              ? 'profile_photo_${user.photoUrl}'
-                              : 'profile_avatar_placeholder',
-                          child: CircleAvatar(
-                            radius: Responsive.isTablet(context) ? 72 : 54,
-                            backgroundColor: isDark ? ThemeService.cardBorder(context) : const Color(0xFFE2E8F0),
-                            backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
-                                ? NetworkImage(user.photoUrl!)
-                                : null,
-                            child: user.photoUrl == null || user.photoUrl!.isEmpty
-                                ? Text(
-                                    user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
-                                    style: TextStyle(
-                                      fontSize: 40,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : ThemeService.primaryColor(context),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _isUploadingPhoto ? null : _showPhotoOptions,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: ThemeService.primaryColor(context),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: theme.scaffoldBackgroundColor,
-                                width: 2.5,
-                              ),
-                            ),
-                            child: _isUploadingPhoto
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-                Text(
-                  user.fullName,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user.email,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Badge de Rol
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                  decoration: BoxDecoration(
-                    gradient: user.isSuperAdmin
-                        ? const LinearGradient(
-                            colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: user.isSuperAdmin ? null : ThemeService.containerColor(context),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: user.isSuperAdmin
-                          ? const Color(0xFFFDE68A)
-                          : ThemeService.primaryColor(context).withValues(alpha: 0.3),
-                      width: user.isSuperAdmin ? 1.5 : 1,
-                    ),
-                    boxShadow: user.isSuperAdmin
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (user.isSuperAdmin) ...[
-                        const Icon(Icons.stars_rounded, color: Colors.white, size: 16),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        user.isSuperAdmin ? 'SUPERADMIN · CONTROL TOTAL' : user.role.displayName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: user.isSuperAdmin ? Colors.white : ThemeService.primaryColor(context),
-                          letterSpacing: user.isSuperAdmin ? 0.6 : 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Tarjeta de Información Institucional (Oficina, Área, DNI, Teléfono)
-                _buildInstitutionalInfoCard(context, user),
-
-                const SizedBox(height: 16),
-
-                // Tarjeta de Personalización Estilo Opera GX
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: ThemeService.cardBg(context),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: ThemeService.cardBorder(context),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: const OperaGxThemePicker(),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Tarjeta Acceso a Fondo de Pantalla Personalizado (Estilo Opera GX)
-                ValueListenableBuilder<WallpaperItem>(
-                  valueListenable: WallpaperService.wallpaperNotifier,
-                  builder: (context, wallpaper, _) {
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const WallpaperScreen(),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: ThemeService.cardBg(context),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: ThemeService.cardBorder(context),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Row(
+                  // ==========================================
+                  // 1. SECCIÓN SUPERIOR: AVATAR, NOMBRE Y ROL
+                  // ==========================================
+                  Center(
+                    child: Column(
+                      children: [
+                        // Avatar con indicador de estado verde y botón de cámara
+                        Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: ThemeService.containerColor(context),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.wallpaper_rounded,
-                                color: ThemeService.primaryColor(context),
-                                size: 22,
+                            GestureDetector(
+                              onTap: () => _openPhotoViewer(user),
+                              child: Hero(
+                                tag: user.photoUrl != null && user.photoUrl!.isNotEmpty
+                                    ? 'profile_photo_${user.photoUrl}'
+                                    : 'profile_avatar_placeholder',
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+                                      width: 2.5,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 46,
+                                    backgroundColor: isDark ? const Color(0xFF16202A) : const Color(0xFFE2E8F0),
+                                    backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
+                                        ? NetworkImage(user.photoUrl!)
+                                        : null,
+                                    child: user.photoUrl == null || user.photoUrl!.isEmpty
+                                        ? Text(
+                                            user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
+                                            style: TextStyle(
+                                              fontSize: 34,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.white : ThemeService.primaryColor(context),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'FONDO DE PANTALLA',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                    ),
+
+                            // Punto verde superior derecho (En línea)
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: Container(
+                                width: 15,
+                                height: 15,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF22C55E),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF0A0F16) : Colors.white,
+                                    width: 2.5,
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    wallpaper.hasWallpaper
-                                        ? 'Activo: ${wallpaper.title}'
-                                        : 'Color sólido predeterminado',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryColor(context).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Cambiar',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: ThemeService.primaryColor(context),
+
+                            // Botón de cámara inferior derecho (Cámara / Galería)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: _isUploadingPhoto ? null : _showPhotoOptions,
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0D9488),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF0A0F16) : Colors.white,
+                                      width: 2.5,
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.chevron_right_rounded,
-                                    size: 16,
-                                    color: ThemeService.primaryColor(context),
-                                  ),
-                                ],
+                                  child: _isUploadingPhoto
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        const SizedBox(height: 14),
 
-                const SizedBox(height: 24),
-
-                
-                // Tarjeta de Seguridad y Gestión de Cuenta (Cambiar Correo y Borrar Cuenta)
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: ThemeService.cardBg(context),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: ThemeService.cardBorder(context),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.security_outlined,
-                            size: 18,
-                            color: ThemeService.primaryColor(context),
+                        // Nombre de Usuario
+                        Text(
+                          user.fullName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.2,
+                            color: isDark ? Colors.white : darkSlate,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'SEGURIDAD Y CUENTA',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                        const SizedBox(height: 3),
+
+                        // Correo Electrónico
+                        Text(
+                          user.email,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Badge de Rol Institucional
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                              width: 1,
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Opción: Cambiar Correo Electrónico
-                      // Opción: Cambiar Contraseña
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: ThemeService.containerColor(context),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.lock_reset_rounded,
-                            color: ThemeService.primaryColor(context),
-                            size: 20,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_rounded, size: 13, color: mintGreen),
+                              const SizedBox(width: 5),
+                              Text(
+                                roleDisplayName,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: mintGreen,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        title: Text(
-                          'Cambiar Contraseña',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Mínimo 8 caract., mayúscula, número y símbolos',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                        trailing: Icon(
-                          Icons.chevron_right_rounded,
-                          color: ThemeService.primaryColor(context),
-                        ),
-                        onTap: () => _showChangePasswordDialog(user),
-                      ),
-
-                      Divider(color: isDark ? Colors.white12 : Colors.black12, height: 16),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: ThemeService.containerColor(context),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.mark_email_read_outlined,
-                            color: ThemeService.primaryColor(context),
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(
-                          'Cambiar Correo Electrónico',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Actualiza tu correo sin perder asistencias ni rol',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                        trailing: Icon(
-                          Icons.chevron_right_rounded,
-                          color: ThemeService.primaryColor(context),
-                        ),
-                        onTap: () => _showChangeEmailDialog(user),
-                      ),
-
-                      Divider(color: isDark ? Colors.white12 : Colors.black12, height: 16),
-
-                      // Opción: Eliminar Mi Cuenta
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Color(0xFFEF4444),
-                            size: 20,
-                          ),
-                        ),
-                        title: const Text(
-                          'Eliminar Mi Cuenta',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFEF4444),
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Desactiva tu acceso permanentemente',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Color(0xFFEF4444),
-                        ),
-                        onTap: () => _showDeleteAccountDialog(user),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-                _buildNotificationsTile(context),
-
-                const SizedBox(height: 24),
-                // Botón Cerrar Sesión
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFEF4444)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                    label: const Text(
-                      'Cerrar Sesión',
-                      style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold),
+                      ],
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 24),
-                Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                  const SizedBox(height: 22),
+
+                  // ==========================================
+                  // 2. TARJETA: INFORMACIÓN INSTITUCIONAL
+                  // ==========================================
+                  _buildInstitutionalInfoCard(context, user),
+
+                  const SizedBox(height: 16),
+
+                  // ==========================================
+                  // 3. TARJETA: TEMA Y APARIENCIA (ESTILO MOCKUP)
+                  // ==========================================
+                  _buildThemeAndAppearanceCard(context, isDark),
+
+                  const SizedBox(height: 16),
+
+                  // ==========================================
+                  // 4. TARJETA: SEGURIDAD Y CUENTA
+                  // ==========================================
+                  _buildSecurityAndAccountCard(context, user, isDark),
+
+                  const SizedBox(height: 22),
+
+                  // ==========================================
+                  // 5. BOTÓN CERRAR SESIÓN
+                  // ==========================================
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? const Color(0xFF131D27) : const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFFEF4444),
+                        elevation: 0,
+                        side: BorderSide(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                          width: 1,
                         ),
-                        child: const LeafLogo(size: 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Instituto de Investigaciones de la Amazonía Peruana',
+                      onPressed: _handleLogout,
+                      icon: const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFF87171)),
+                      label: const Text(
+                        'Cerrar Sesión',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: ThemeService.subtextColor(context),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Control de Asistencia • v1.0.0',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: ThemeService.subtextColor(context).withValues(alpha: 0.7),
+                          color: Color(0xFFF87171),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 22),
+
+                  // Sello Institucional
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const LeafLogo(size: 28),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Instituto de Investigaciones de la Amazonía Peruana',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: ThemeService.subtextColor(context),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
       },
     );
   }
 
-  Widget _buildNotificationsTile(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = ThemeService.primaryColor(context);
+  /// Tarjeta de Tema y Apariencia unificada según captura oficial
+  Widget _buildThemeAndAppearanceCard(BuildContext context, bool isDark) {
+    const mintGreen = Color(0xFF34D399);
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ThemeService.themeModeNotifier,
+        ThemeService.accentColorNotifier,
+      ]),
+      builder: (context, _) {
+        final currentAccent = ThemeService.currentAccent;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header: Icono + Título + Badge de Tema
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.public_rounded, color: mintGreen, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Tema y Apariencia',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+                    ),
+                    child: Text(
+                      currentAccent.displayName.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        color: mintGreen,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Carrusel horizontal de temas estilo ventana/mockup
+              SizedBox(
+                height: 94,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: AppAccentColor.values.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final item = AppAccentColor.values[index];
+                    final isSelected = item == currentAccent;
+                    final itemColor = item.accentSample;
+
+                    return GestureDetector(
+                      onTap: () {
+                        if (item != currentAccent) {
+                          ThemeService.setAccentColor(item);
+                        }
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 88,
+                            height: 64,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? itemColor
+                                    : (isDark ? const Color(0xFF1E2C38) : const Color(0xFFCBD5E1)),
+                                width: isSelected ? 1.8 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Container(
+                                      width: 9,
+                                      height: 9,
+                                      decoration: BoxDecoration(
+                                        color: itemColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(Icons.check_circle_rounded, size: 13, color: itemColor),
+                                  ],
+                                ),
+                                Container(
+                                  height: 3,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: itemColor,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            item.displayName,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                  : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Tile de Fondo de Pantalla
+              ValueListenableBuilder<WallpaperItem>(
+                valueListenable: WallpaperService.wallpaperNotifier,
+                builder: (context, wallpaper, _) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const WallpaperScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: mintGreen.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.wallpaper_rounded, color: mintGreen, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Fondo de Pantalla',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  wallpaper.hasWallpaper ? 'Activo: ${wallpaper.title}' : 'Color sólido predeterminado',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Text(
+                                'Cambiar',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: mintGreen,
+                                ),
+                              ),
+                              SizedBox(width: 3),
+                              Icon(Icons.chevron_right_rounded, size: 16, color: mintGreen),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Tarjeta de Seguridad y Cuenta (Cambiar Contraseña, Correo, Notificaciones)
+  Widget _buildSecurityAndAccountCard(BuildContext context, UserModel user, bool isDark) {
+    const mintGreen = Color(0xFF34D399);
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ThemeService.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: ThemeService.cardBorder(context),
+          color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
           width: 1.2,
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            color: primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.shield_outlined, color: mintGreen, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Seguridad y Cuenta',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          child: Icon(
-            Icons.notifications_outlined,
-            color: primary,
-            size: 22,
+          const SizedBox(height: 14),
+
+          // 1. Cambiar Contraseña
+          _buildSecurityTile(
+            context: context,
+            icon: Icons.history_rounded,
+            title: 'Cambiar Contraseña',
+            subtitle: 'Mínimo 8 caract., mayúscula, números ...',
+            onTap: () => _showChangePasswordDialog(user),
           ),
-        ),
-        title: Text(
-          'Notificaciones',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          const SizedBox(height: 10),
+
+          // 2. Cambiar Correo Electrónico
+          _buildSecurityTile(
+            context: context,
+            icon: Icons.mail_outline_rounded,
+            title: 'Cambiar Correo Electrónico',
+            subtitle: 'Actualiza tu contacto sin perder histori...',
+            onTap: () => _showChangeEmailDialog(user),
           ),
-        ),
-        subtitle: Text(
-          'Tonos de asistencia, recordatorios y alarmas offline',
-          style: TextStyle(
-            fontSize: 12.5,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          const SizedBox(height: 10),
+
+          // 3. Configuración de Notificaciones
+          _buildSecurityTile(
+            context: context,
+            icon: Icons.notifications_active_outlined,
+            title: 'Configuración de Notificaciones',
+            subtitle: 'Alertas de asistencia, turno y alarmas o...',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsSettingsScreen()),
+              );
+            },
           ),
-        ),
-        trailing: Icon(
-          Icons.chevron_right_rounded,
-          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          size: 24,
-        ),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const NotificationsSettingsScreen(),
+
+          // Opción Eliminar Mi Cuenta (para cuentas regulares que no sean SuperAdmin)
+          if (!user.isSuperAdmin) ...[
+            const SizedBox(height: 10),
+            _buildSecurityTile(
+              context: context,
+              icon: Icons.delete_outline_rounded,
+              title: 'Eliminar Mi Cuenta',
+              subtitle: 'Desactiva tu acceso permanentemente',
+              isDanger: true,
+              onTap: () => _showDeleteAccountDialog(user),
             ),
-          );
-        },
+          ],
+        ],
       ),
     );
   }
 
+  /// Tile interactivo para la sección de Seguridad
+  Widget _buildSecurityTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isDanger = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const mintGreen = Color(0xFF34D399);
+    final accentColor = isDanger ? const Color(0xFFEF4444) : mintGreen;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: accentColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDanger
+                          ? const Color(0xFFEF4444)
+                          : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tarjeta de Información Institucional con estilo de tarjetas individuales
   Widget _buildInstitutionalInfoCard(BuildContext context, UserModel user) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = ThemeService.primaryColor(context);
+    const mintGreen = Color(0xFF34D399);
 
-    final docType = _detectDocumentType(user.documentNumber);
     final docLabel = _getDocumentLabel(user.documentNumber);
+    final hasDoc = user.documentNumber?.isNotEmpty == true;
+    final hasPhone = user.phoneNumber?.isNotEmpty == true;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ThemeService.cardBg(context),
+        color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: ThemeService.cardBorder(context),
+          color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
           width: 1.2,
         ),
       ),
@@ -1852,16 +1959,22 @@ class _ProfileTabState extends State<ProfileTab> {
         firstChild: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header: Icono + Título + Botón Editar
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Información Institucional',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
+                Row(
+                  children: const [
+                    Icon(Icons.badge_rounded, color: mintGreen, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Información Institucional',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
@@ -1869,21 +1982,21 @@ class _ProfileTabState extends State<ProfileTab> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: primary.withValues(alpha: 0.12),
+                      color: const Color(0xFF064E3B).withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: primary.withValues(alpha: 0.25)),
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.edit_rounded, size: 13, color: primary),
-                        const SizedBox(width: 4),
+                      children: const [
+                        Icon(Icons.edit_rounded, size: 12, color: mintGreen),
+                        SizedBox(width: 4),
                         Text(
                           'Editar',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
-                            color: primary,
+                            color: mintGreen,
                           ),
                         ),
                       ],
@@ -1892,199 +2005,91 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // Fila Oficina (Sin desbordamiento / overflow protegido)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
+            // 1. OFICINA / CARGO
+            _buildInstitutionalTile(
+              context: context,
+              icon: Icons.business_rounded,
+              label: 'OFICINA / CARGO',
+              value: user.office.isNotEmpty ? user.office : 'Sin asignar',
+              isPlaceholder: user.office.isEmpty,
               onTap: () => _startEditingInstitutionalInfo(user),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(Icons.apartment_rounded, size: 20, color: primary),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Oficina',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user.office.isNotEmpty ? user.office : 'Sin asignar',
-                        textAlign: TextAlign.end,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: user.office.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
-                          fontStyle: user.office.isNotEmpty ? FontStyle.normal : FontStyle.italic,
-                          color: user.office.isNotEmpty
-                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                              : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 14,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 10),
 
-            // Fila Área (Sin desbordamiento / overflow protegido)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
+            // 2. ÁREA ASIGNADA
+            _buildInstitutionalTile(
+              context: context,
+              icon: Icons.hub_rounded,
+              label: 'ÁREA ASIGNADA',
+              value: user.area.isNotEmpty ? user.area : 'Sin asignar',
+              isPlaceholder: user.area.isEmpty,
               onTap: () => _startEditingInstitutionalInfo(user),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(Icons.grid_view_rounded, size: 20, color: primary),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Área',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user.area.isNotEmpty ? user.area : 'Sin asignar',
-                        textAlign: TextAlign.end,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: user.area.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
-                          fontStyle: user.area.isNotEmpty ? FontStyle.normal : FontStyle.italic,
-                          color: user.area.isNotEmpty
-                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                              : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 14,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 10),
 
-            // Fila Documento dinámica (DNI / CE / Pasaporte según corresponda)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => _startEditingInstitutionalInfo(user),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      docType == 'CE'
-                          ? Icons.credit_card_outlined
-                          : (docType == 'Pasaporte'
-                              ? Icons.menu_book_outlined
-                              : Icons.badge_outlined),
-                      size: 20,
-                      color: primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      docLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user.documentNumber?.isNotEmpty == true ? user.documentNumber! : 'No registrado',
-                        textAlign: TextAlign.end,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: user.documentNumber?.isNotEmpty == true ? FontWeight.w600 : FontWeight.normal,
-                          fontStyle: user.documentNumber?.isNotEmpty == true ? FontStyle.normal : FontStyle.italic,
-                          color: user.documentNumber?.isNotEmpty == true
-                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                              : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 14,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                    ),
-                  ],
+            // 3. DOCUMENTO DE IDENTIDAD
+            _buildInstitutionalTile(
+              context: context,
+              icon: Icons.fingerprint_rounded,
+              label: 'DOCUMENTO DE IDENTIDAD ($docLabel)',
+              value: hasDoc ? user.documentNumber! : 'No registrado',
+              isPlaceholder: !hasDoc,
+              trailingAction: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: hasDoc
+                      ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                      : const Color(0xFFD97706).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: hasDoc ? const Color(0xFF10B981) : const Color(0xFFD97706),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  hasDoc ? 'Registrado' : 'Completar',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: hasDoc ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
                 ),
               ),
+              onTap: () => _startEditingInstitutionalInfo(user),
             ),
             const SizedBox(height: 10),
 
-            // Fila Teléfono
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => _startEditingInstitutionalInfo(user),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(Icons.phone_outlined, size: 20, color: primary),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Teléfono',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user.phoneNumber?.isNotEmpty == true ? user.phoneNumber! : 'No registrado',
-                        textAlign: TextAlign.end,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: user.phoneNumber?.isNotEmpty == true ? FontWeight.w600 : FontWeight.normal,
-                          fontStyle: user.phoneNumber?.isNotEmpty == true ? FontStyle.normal : FontStyle.italic,
-                          color: user.phoneNumber?.isNotEmpty == true
-                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                              : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 14,
-                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                    ),
-                  ],
+            // 4. TELÉFONO DE CONTACTO
+            _buildInstitutionalTile(
+              context: context,
+              icon: Icons.phone_android_rounded,
+              label: 'TELÉFONO DE CONTACTO',
+              value: hasPhone ? user.phoneNumber! : 'No registrado',
+              isPlaceholder: !hasPhone,
+              trailingAction: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: hasPhone
+                      ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                      : const Color(0xFFD97706).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: hasPhone ? const Color(0xFF10B981) : const Color(0xFFD97706),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  hasPhone ? 'Verificado' : 'Completar',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: hasPhone ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
                 ),
               ),
+              onTap: () => _startEditingInstitutionalInfo(user),
             ),
           ],
         ),
@@ -2094,12 +2099,11 @@ class _ProfileTabState extends State<ProfileTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Editar Información',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                 ),
                 IconButton(
@@ -2122,15 +2126,12 @@ class _ProfileTabState extends State<ProfileTab> {
             // Campo Oficina
             TextField(
               controller: _officeController,
-              style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : const Color(0xFF0F172A)),
               decoration: InputDecoration(
-                labelText: 'Oficina',
-                hintText: 'Ej. Presidencia, Sede Central, Logística...',
-                prefixIcon: Icon(Icons.apartment_rounded, size: 20, color: primary),
+                labelText: 'Oficina / Cargo',
+                hintText: 'ej. Sistemas / Administrador',
+                prefixIcon: const Icon(Icons.business_rounded, size: 20),
                 filled: true,
-                fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
             ),
             const SizedBox(height: 12),
@@ -2138,68 +2139,55 @@ class _ProfileTabState extends State<ProfileTab> {
             // Campo Área
             TextField(
               controller: _areaController,
-              style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : const Color(0xFF0F172A)),
               decoration: InputDecoration(
-                labelText: 'Área',
-                hintText: 'Ej. Tecnologías de la Información, Recursos Humanos...',
-                prefixIcon: Icon(Icons.grid_view_rounded, size: 20, color: primary),
+                labelText: 'Área Asignada',
+                hintText: 'ej. Dirección General',
+                prefixIcon: const Icon(Icons.hub_rounded, size: 20),
                 filled: true,
-                fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
-            ),
-            const SizedBox(height: 14),
-
-            // Selector Tipo de Documento
-            Text(
-              'Tipo de Documento',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildDocTypeChip('DNI', Icons.badge_outlined, primary, isDark),
-                const SizedBox(width: 8),
-                _buildDocTypeChip('CE', Icons.credit_card_outlined, primary, isDark),
-                const SizedBox(width: 8),
-                _buildDocTypeChip('Pasaporte', Icons.menu_book_outlined, primary, isDark),
-              ],
             ),
             const SizedBox(height: 12),
 
-            // Campo Número de Documento
-            TextField(
-              controller: _documentController,
-              keyboardType: _documentType == 'DNI' ? TextInputType.number : TextInputType.text,
-              maxLength: _documentType == 'DNI' ? 8 : (_documentType == 'CE' ? 9 : 12),
-              inputFormatters: [
-                if (_documentType == 'DNI') FilteringTextInputFormatter.digitsOnly,
-                if (_documentType != 'DNI') FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-              ],
-              style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-              decoration: InputDecoration(
-                labelText: 'Nº de $_documentType',
-                hintText: _documentType == 'DNI'
-                    ? '8 dígitos numéricos'
-                    : (_documentType == 'CE' ? '9 caracteres alfanuméricos' : '6 a 12 caracteres'),
-                prefixIcon: Icon(
-                  _documentType == 'CE'
-                      ? Icons.credit_card_outlined
-                      : (_documentType == 'Pasaporte' ? Icons.menu_book_outlined : Icons.badge_outlined),
-                  size: 20,
-                  color: primary,
+            // Selector Tipo Documento + Número
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _documentType,
+                      items: const [
+                        DropdownMenuItem(value: 'DNI', child: Text('DNI')),
+                        DropdownMenuItem(value: 'CE', child: Text('C.E.')),
+                        DropdownMenuItem(value: 'Pasaporte', child: Text('Pasap.')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _documentType = val);
+                      },
+                    ),
+                  ),
                 ),
-                counterText: '',
-                filled: true,
-                fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _documentController,
+                    keyboardType: TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText: 'Nº Documento',
+                      hintText: 'Número oficial',
+                      filled: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
 
@@ -2207,56 +2195,40 @@ class _ProfileTabState extends State<ProfileTab> {
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              maxLength: 15,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
-              ],
-              style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : const Color(0xFF0F172A)),
               decoration: InputDecoration(
-                labelText: 'Teléfono',
-                hintText: 'Ej. 900972970',
-                prefixIcon: Icon(Icons.phone_outlined, size: 20, color: primary),
-                counterText: '',
+                labelText: 'Teléfono de Contacto',
+                hintText: '+51 987 654 321',
+                prefixIcon: const Icon(Icons.phone_android_rounded, size: 20),
                 filled: true,
-                fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
             ),
             const SizedBox(height: 16),
 
-            // Botones Cancelar / Guardar
+            // Botones Guardar / Cancelar
             Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () => setState(() => _isEditingInstitutionalInfo = false),
-                    child: const Text('Cancelar'),
-                  ),
+                TextButton(
+                  onPressed: () => setState(() => _isEditingInstitutionalInfo = false),
+                  child: const Text('Cancelar'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _isSavingInstitutionalInfo ? null : () => _saveInstitutionalInfo(user),
-                    icon: _isSavingInstitutionalInfo
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.check_rounded, size: 18),
-                    label: Text(_isSavingInstitutionalInfo ? 'Guardando...' : 'Guardar'),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
+                  onPressed: _isSavingInstitutionalInfo ? null : () => _saveInstitutionalInfo(user),
+                  icon: _isSavingInstitutionalInfo
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Guardar Cambios'),
                 ),
               ],
             ),
@@ -2266,55 +2238,80 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  Widget _buildDocTypeChip(String type, IconData icon, Color primary, bool isDark) {
-    final isSelected = _documentType == type;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () {
-          if (_documentType != type) {
-            setState(() {
-              _documentType = type;
-            });
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? primary.withValues(alpha: 0.15)
-                : (isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF1F5F9)),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? primary : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-              width: isSelected ? 1.5 : 1,
+  /// Tile individual para información institucional
+  Widget _buildInstitutionalTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required String value,
+    bool isPlaceholder = false,
+    Widget? trailingAction,
+    VoidCallback? onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const mintGreen = Color(0xFF34D399);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: mintGreen.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: mintGreen, size: 18),
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isSelected
-                    ? primary
-                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isPlaceholder ? FontWeight.w500 : FontWeight.bold,
+                      fontStyle: isPlaceholder ? FontStyle.italic : FontStyle.normal,
+                      color: isPlaceholder
+                          ? const Color(0xFFF59E0B)
+                          : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Text(
-                type,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? primary : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                ),
-              ),
+            ),
+            if (trailingAction != null) ...[
+              const SizedBox(width: 8),
+              trailingAction,
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
-
