@@ -1,10 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
-import '../../config/api_config.dart';
 import '../../models/attendance_model.dart';
 import '../../models/event_model.dart';
 import '../../models/user_model.dart';
@@ -414,7 +410,7 @@ class _DashboardTabState extends State<DashboardTab> {
 
     final totalValidados = events.fold<int>(
       0,
-      (sum, e) => sum + e.attendees.where((a) => !a.isManual).length,
+      (sum, e) => sum + e.attendees.where((a) => a.notes != 'manual').length,
     );
     final displayValidados = totalValidados > 0 ? totalValidados : 128;
 
