@@ -22,16 +22,28 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
   int _maxSupervisors = 3;
   int _availableSlots = 3;
   List<UserModel> _allUsers = [];
+  late final TextEditingController _searchController;
   String _searchQuery = '';
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _searchController = TextEditingController();
+    _loadData(resetSearch: false);
   }
 
-  Future<void> _loadData() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData({bool resetSearch = true}) async {
+    if (resetSearch) {
+      _searchController.clear();
+      _searchQuery = '';
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -1164,7 +1176,8 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadData,
+            tooltip: 'Recargar lista completa',
+            onPressed: () => _loadData(resetSearch: true),
           ),
         ],
       ),
@@ -1181,13 +1194,13 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                         const SizedBox(height: 12),
                         Text(_errorMessage!, textAlign: TextAlign.center),
                         const SizedBox(height: 16),
-                        ElevatedButton(onPressed: _loadData, child: const Text('Reintentar')),
+                        ElevatedButton(onPressed: () => _loadData(resetSearch: true), child: const Text('Reintentar')),
                       ],
                     ),
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _loadData,
+                  onRefresh: () => _loadData(resetSearch: true),
                   child: Responsive.constrained(
                     context,
                     maxTabletWidth: 860,
@@ -1228,12 +1241,23 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                                 border: Border.all(color: ThemeService.cardBorder(context)),
                               ),
                               child: TextField(
+                                controller: _searchController,
                                 onChanged: (val) => setState(() => _searchQuery = val.trim()),
                                 style: TextStyle(fontSize: 14, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                                 decoration: InputDecoration(
                                   hintText: 'Buscar personal por nombre o correo...',
                                   hintStyle: TextStyle(fontSize: 13, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                                   prefixIcon: Icon(Icons.search_rounded, size: 20, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: Icon(Icons.close_rounded, size: 18, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                          tooltip: 'Limpiar búsqueda',
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            setState(() => _searchQuery = '');
+                                          },
+                                        )
+                                      : null,
                                   border: InputBorder.none,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 ),
