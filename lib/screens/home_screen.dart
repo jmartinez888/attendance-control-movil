@@ -189,7 +189,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final canManageStaff = currentUser?.canManageAttendanceQr == true;
 
         final List<Widget> pages = [
-          DashboardTab(onNavigateToHistory: () => _selectTab(1)),
+          DashboardTab(
+            onNavigateToHistory: () => _selectTab(1),
+            onNavigateToProfile: () => _selectTab(canManageStaff ? 3 : 2),
+          ),
           _activatedTabs.contains(1) ? const AttendanceTab() : const SizedBox.shrink(),
           if (canManageStaff)
             _activatedTabs.contains(2) ? const SupervisorsTab() : const SizedBox.shrink(),

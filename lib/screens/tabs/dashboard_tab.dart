@@ -1,30 +1,34 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+
 import '../../config/api_config.dart';
-import '../../services/attendance_service.dart';
-import 'package:flutter/material.dart';
-import '../../utils/responsive.dart';
+import '../../models/attendance_model.dart';
+import '../../models/event_model.dart';
 import '../../models/user_model.dart';
-import '../../services/storage_service.dart';
+import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
-import '../qr/qr_display_screen.dart';
-import '../qr/qr_scanner_screen.dart';
-import '../events/events_list_screen.dart';
+import '../../services/connectivity_service.dart';
+import '../../services/event_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/storage_service.dart';
+import '../../utils/responsive.dart';
+import '../../widgets/leaf_logo.dart';
 import '../events/create_event_screen.dart';
 import '../events/event_detail_screen.dart';
-import '../../services/event_service.dart';
-import '../../models/event_model.dart';
-import '../../services/theme_service.dart';
-import '../../services/connectivity_service.dart';
-import '../../widgets/leaf_logo.dart';
+import '../events/events_list_screen.dart';
+import '../qr/qr_display_screen.dart';
+import '../qr/qr_scanner_screen.dart';
 
 class DashboardTab extends StatefulWidget {
   final VoidCallback? onNavigateToHistory;
+  final VoidCallback? onNavigateToProfile;
 
   const DashboardTab({
     super.key,
     this.onNavigateToHistory,
+    this.onNavigateToProfile,
   });
 
   @override
@@ -32,22 +36,48 @@ class DashboardTab extends StatefulWidget {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
+  List<AttendanceModel> _todayRecords = [];
+
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    // 1. Cargar caché inmediato en memoria para 0 ms lag
+    final cached = AttendanceService.getCachedTodayRecords();
+    if (cached.isNotEmpty && mounted) {
+      setState(() {
+        _todayRecords = cached;
+      });
+    }
+
+    // 2. Refrescar con backend
+    _fetchTodayAttendance();
     EventService.getEvents();
+  }
+
+  Future<void> _fetchTodayAttendance() async {
+    if (!mounted) return;
+    try {
+      final records = await AttendanceService.getTodayRecords();
+      if (mounted) {
+        setState(() {
+          _todayRecords = records;
+        });
+      }
+    } catch (_) {}
   }
 
   void _handleGenerarQr(BuildContext context, UserModel user) {
     if (user.canManageAttendanceQr) {
-      // Admin o alguno de los 3 Supervisores
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const QrDisplayScreen(mode: QrMode.attendance),
         ),
       );
     } else {
-      // Usuario regular (Empleado)
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -65,7 +95,7 @@ class _DashboardTabState extends State<DashboardTab> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
           ),
           content: const Text(
-            'La función Generar QR con cifrado SHA-256 está reservada exclusivamente para el Administrador y los 3 Supervisores autorizados para la toma de asistencia.',
+            'La función Generar QR con cifrado SHA-256 está reservada exclusivamente para el Administrador y los Supervisores autorizados para la toma de asistencia.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
@@ -73,11 +103,11 @@ class _DashboardTabState extends State<DashboardTab> {
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeService.primaryColor(context),
+                  backgroundColor: const Color(0xFF10B981),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Entendido'),
+                child: const Text('Entendido', style: TextStyle(color: Colors.white)),
               ),
             ),
           ],
@@ -92,458 +122,539 @@ class _DashboardTabState extends State<DashboardTab> {
         builder: (_) => const QrScannerScreen(target: ScanTarget.attendance),
       ),
     );
-    if (res == true) {
-      EventService.getEvents();
+    if (res == true && mounted) {
+      await _fetchTodayAttendance();
+      await EventService.getEvents();
     }
   }
 
-  String _getRoleShortName(UserRole role) {
-    switch (role) {
-      case UserRole.SUPERADMIN:
-        return 'SUPERADMIN';
-      case UserRole.ADMIN:
-        return 'ADMIN';
-      case UserRole.ADMIN_EVENTO:
-        return 'ADMIN EVENTO';
-      case UserRole.GESTOR_EVENTO:
-        return 'GESTOR EVENTO';
-      case UserRole.SUPERVISOR:
-        return 'SUPERVISOR';
-      case UserRole.USER:
-        return 'USER';
+  String _maskDni(String? dni) {
+    if (dni == null || dni.trim().isEmpty) return '7492****';
+    final clean = dni.trim();
+    if (clean.length > 4) {
+      return '${clean.substring(0, 4)}****';
+    }
+    return clean;
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour;
+    final minute = dt.minute;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final hourStr = displayHour.toString().padLeft(2, '0');
+    final minStr = minute.toString().padLeft(2, '0');
+    return '$hourStr:$minStr $period';
+  }
+
+  String _getCurrentShiftLabel() {
+    final now = DateTime.now();
+    if (now.hour < 13) {
+      return 'Turno Mañana';
+    } else {
+      return 'Turno Tarde';
     }
   }
 
-  String _getUserSubtitle(UserModel user) {
-    if (user.isSuperAdmin) return 'Super Administrador';
-    if (user.isAdmin) return 'Admin IIAP';
-    if (user.isAdminEvento) return 'Admin Evento / UO';
-    if (user.isGestorEvento) return 'Gestor Evento / UO';
-    if (user.isSupervisor) return 'Supervisor';
-    return 'Usuario';
+  String _getMonthAbbr(int month) {
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic'];
+    if (month >= 1 && month <= 12) return months[month - 1];
+    return '';
+  }
+
+  String _formatEventDateAndDuration(EventModel event) {
+    final now = DateTime.now();
+    final isToday = event.startDate.year == now.year &&
+        event.startDate.month == now.month &&
+        event.startDate.day == now.day;
+
+    final hourStr = _formatTime(event.startDate);
+    final prefix = isToday ? 'Hoy' : '${event.startDate.day} ${_getMonthAbbr(event.startDate.month)}';
+
+    final duration = event.endDate.difference(event.startDate);
+    String durStr = '';
+    if (duration.inMinutes > 0) {
+      final hours = duration.inHours;
+      final mins = duration.inMinutes % 60;
+      if (hours > 0 && mins > 0) {
+        durStr = ' (Duración: ${hours}h ${mins}m)';
+      } else if (hours > 0) {
+        durStr = ' (Duración: ${hours}h)';
+      } else {
+        durStr = ' (Duración: ${mins}m)';
+      }
+    }
+    return '$prefix, $hourStr$durStr';
+  }
+
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return 'U';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return ValueListenableBuilder<UserModel?>(
       valueListenable: StorageService.currentUserNotifier,
       builder: (context, rawUser, _) {
         final user = rawUser ?? StorageService.currentUser;
         if (user == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
         }
 
-        final roleColor = (user.isAdmin || user.isSuperAdmin)
-            ? const Color(0xFFDC2626)
-            : (user.isSupervisor || user.isAdminEvento ? const Color(0xFFD97706) : const Color(0xFF16A34A));
+        // Determinar registros de Entrada y Salida del día
+        AttendanceModel? entry;
+        AttendanceModel? exit;
+
+        for (final r in _todayRecords) {
+          if (r.type == AttendanceType.CHECK_IN) {
+            if (entry == null || r.timestamp.isBefore(entry.timestamp)) {
+              entry = r;
+            }
+          } else if (r.type == AttendanceType.CHECK_OUT) {
+            if (exit == null || r.timestamp.isAfter(exit.timestamp)) {
+              exit = r;
+            }
+          }
+        }
 
         return SafeArea(
           child: RefreshIndicator(
+            color: const Color(0xFF10B981),
+            backgroundColor: const Color(0xFF131D21),
             onRefresh: () async {
               await AuthService.getProfile();
+              await _fetchTodayAttendance();
               await EventService.getEvents();
             },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Responsive.constrained(
                 context,
-                maxTabletWidth: 920,
+                maxTabletWidth: 680,
                 child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Tarjeta de Bienvenida y Rol
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: ThemeService.bannerGradient(context),
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ThemeService.primaryColor(context).withValues(alpha: isDark ? 0.2 : 0.25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: roleColor.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: roleColor.withValues(alpha: 0.6)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    user.isAdmin
-                                        ? Icons.admin_panel_settings_rounded
-                                        : (user.isSupervisor ? Icons.security_rounded : Icons.person_rounded),
-                                    color: Colors.white,
-                                    size: 13,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Flexible(
-                                    child: Text(
-                                      _getRoleShortName(user.role),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ValueListenableBuilder<bool>(
-                            valueListenable: ConnectivityService.isOnlineNotifier,
-                            builder: (context, isOnline, _) {
-                              return AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: isOnline
-                                      ? Colors.white.withValues(alpha: 0.15)
-                                      : const Color(0xFFEF4444).withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isOnline
-                                        ? Colors.white.withValues(alpha: 0.2)
-                                        : const Color(0xFFEF4444).withValues(alpha: 0.5),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.circle,
-                                      color: isOnline ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                                      size: 7,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      isOnline ? 'En línea' : 'Desconectado',
-                                      style: TextStyle(
-                                        color: isOnline ? Colors.white : const Color(0xFFFEE2E2),
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.18),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: const LeafLogo(size: 38),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Hola, ${user.fullName}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18.5,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _getUserSubtitle(user),
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-
-                // Sección de Botones Principales: Generar QR y Escanear QR
-                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Control de Asistencia',
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFF2563EB)),
-                          SizedBox(width: 4),
-                          Text(
-                            'SHA-256',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2563EB),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // ==========================================
+                    // 1. TOP APP BAR (HEADER SUPERIOR)
+                    // ==========================================
+                    _buildTopHeader(context, user),
+
+                    const SizedBox(height: 18),
+
+                    // ==========================================
+                    // 2. CARD DE BIENVENIDA / PERFIL
+                    // ==========================================
+                    _buildWelcomeProfileCard(context, user),
+
+                    const SizedBox(height: 18),
+
+                    // ==========================================
+                    // 3. CARD JORNADA DE HOY
+                    // ==========================================
+                    _buildJornadaDeHoyCard(context, user, entry, exit),
+
+                    const SizedBox(height: 22),
+
+                    // ==========================================
+                    // 4. SECCIÓN CONTROL DE ASISTENCIA
+                    // ==========================================
+                    _buildAttendanceControlSection(context, user),
+
+                    const SizedBox(height: 22),
+
+                    // ==========================================
+                    // 5. SECCIÓN EVENTOS INSTITUCIONALES
+                    // ==========================================
+                    _buildEventsSection(context, user),
+
+                    const SizedBox(height: 28),
                   ],
                 ),
-                const SizedBox(height: 12),
-
-                // ACCIONES CONDICIONALES POR ROL:
-                // - Administrador: SOLO botón "Generar QR"
-                // - Supervisores: AMBOS botones ("Generar QR" y "Escanear QR" para marcar su propia asistencia)
-                // - Personal regular: SOLO botón "Escanear QR"
-                if (user.isSupervisor && Responsive.isTablet(context)) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionCard(
-                          context,
-                          title: 'Generar QR de Asistencia',
-                          subtitle: 'Emisión con cifrado SHA-256 (Rotación automática)',
-                          icon: Icons.qr_code_2_rounded,
-                          color: const Color(0xFF16A34A),
-                          badgeText: 'SHA-256',
-                          badgeColor: const Color(0xFF16A34A),
-                          isLocked: false,
-                          onTap: () => _handleGenerarQr(context, user),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildActionCard(
-                          context,
-                          title: 'Escanear QR',
-                          subtitle: 'Registra tu asistencia escaneando el QR institucional',
-                          icon: Icons.qr_code_scanner_rounded,
-                          color: const Color(0xFF2563EB),
-                          badgeText: 'CÁMARA',
-                          badgeColor: const Color(0xFF2563EB),
-                          isLocked: false,
-                          onTap: () => _handleEscanearQr(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  if (user.canManageAttendanceQr) ...[
-                    _buildActionCard(
-                      context,
-                      title: 'Generar QR de Asistencia',
-                      subtitle: 'Emisión institucional con cifrado SHA-256 (Rotación automática)',
-                      icon: Icons.qr_code_2_rounded,
-                      color: const Color(0xFF16A34A),
-                      badgeText: 'SHA-256',
-                      badgeColor: const Color(0xFF16A34A),
-                      isLocked: false,
-                      onTap: () => _handleGenerarQr(context, user),
-                    ),
-                    if (user.isSupervisor) const SizedBox(height: 12),
-                    if (user.isAdmin) ...[
-                      const SizedBox(height: 12),
-                      _buildActionCard(
-                        context,
-                        title: 'Escanear Asistencia',
-                        subtitle: 'Reconocimiento biométrico facial con cámara (InsightFace)',
-                        icon: Icons.face_retouching_natural_rounded,
-                        color: const Color(0xFF7C3AED),
-                        badgeText: 'BIOMETRÍA',
-                        badgeColor: const Color(0xFF7C3AED),
-                        isLocked: false,
-                        onTap: () => _handleEscanearAsistenciaFacial(context),
-                      ),
-                    ],
-                  ],
-                  if (!user.isAdmin) ...[
-                    _buildActionCard(
-                      context,
-                      title: 'Escanear QR',
-                      subtitle: 'Registra tu asistencia escaneando el código QR institucional',
-                      icon: Icons.qr_code_scanner_rounded,
-                      color: const Color(0xFF2563EB),
-                      badgeText: 'CÁMARA',
-                      badgeColor: const Color(0xFF2563EB),
-                      isLocked: false,
-                      onTap: () => _handleEscanearQr(context),
-                    ),
-                  ],
-                ],
-
-                const SizedBox(height: 22),
-
-                // Sección Eventos Institucionales
-                _buildEventsSection(context, user),
-
-                const SizedBox(height: 24),
-                ],
               ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
-  Widget _buildActionCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required String badgeText,
-    required Color badgeColor,
-    required bool isLocked,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  // ===========================================================================
+  // COMPONENTES UI - VISTAS EXACTAS A LAS IMÁGENES
+  // ===========================================================================
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: ThemeService.cardBg(context),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: ThemeService.cardBorder(context),
-            width: 1.2,
+  Widget _buildTopHeader(BuildContext context, UserModel user) {
+    return Row(
+      children: [
+        // Squircle con Leaf Logo + Nombre IIAP OFICIAL
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF142226),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1F333B)),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+          child: const LeafLogo(size: 22),
+        ),
+        const SizedBox(width: 10),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'IIAP',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 0.5,
+                height: 1.1,
+              ),
+            ),
+            Text(
+              'OFICIAL',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF10B981),
+                letterSpacing: 1.2,
+                height: 1.2,
+              ),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(13),
+
+        const Spacer(),
+
+        // Badge ● EN LÍNEA
+        ValueListenableBuilder<bool>(
+          valueListenable: ConnectivityService.isOnlineNotifier,
+          builder: (context, isOnline, _) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: isDark ? 0.2 : 0.12),
-                borderRadius: BorderRadius.circular(14),
+                color: isOnline ? const Color(0xFF0D2821) : const Color(0xFF2E1515),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isOnline ? const Color(0xFF165942) : const Color(0xFF5A2020),
+                  width: 1,
+                ),
               ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.bold,
-                            color: badgeColor,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(width: 5),
                   Text(
-                    subtitle,
+                    isOnline ? 'EN LÍNEA' : 'OFFLINE',
                     style: TextStyle(
-                      fontSize: 12,
-                      height: 1.3,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.6,
                     ),
                   ),
                 ],
               ),
+            );
+          },
+        ),
+
+        const SizedBox(width: 10),
+
+        // Botón Notificaciones
+        IconButton(
+          onPressed: () {
+            NotificationService.checkAndTriggerCheckoutReminder();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Notificaciones sincronizadas. Sin alertas pendientes.',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF131D21),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 22),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          splashRadius: 20,
+        ),
+
+        const SizedBox(width: 6),
+
+        // Avatar de usuario circular que lleva al Perfil
+        InkWell(
+          onTap: () {
+            widget.onNavigateToProfile?.call();
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF34D399),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Icon(
-              isLocked ? Icons.lock_outline_rounded : Icons.arrow_forward_ios_rounded,
-              size: 15,
-              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+            child: ClipOval(
+              child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                  ? Image.network(
+                      user.photoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.person,
+                        color: Color(0xFF0F172A),
+                        size: 21,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.person,
+                      color: Color(0xFF0F172A),
+                      size: 21,
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWelcomeProfileCard(BuildContext context, UserModel user) {
+    // Extraer primer nombre
+    final nameParts = user.fullName.trim().split(RegExp(r'\s+'));
+    final firstName = nameParts.isNotEmpty ? nameParts.first : 'Usuario';
+
+    // Cargo y Dependencia
+    final cargo = user.office.isNotEmpty
+        ? user.office
+        : (user.position?.isNotEmpty == true ? user.position! : 'Servidor Público');
+    final dependencia = user.area.isNotEmpty
+        ? user.area
+        : (user.department?.isNotEmpty == true ? user.department! : 'Sede Central IIAP');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D21),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Foto / Avatar ovalado horizontal con dot verde de status
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 98,
+                height: 70,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(35), // Oval horizontal
+                  border: Border.all(color: const Color(0xFF28404B), width: 1.5),
+                  color: const Color(0xFF0D1619),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(35),
+                  child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                      ? Image.network(
+                          user.photoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildDefaultOvalAvatar(user),
+                        )
+                      : _buildDefaultOvalAvatar(user),
+                ),
+              ),
+              // Dot verde activo en la esquina inferior derecha
+              Positioned(
+                bottom: 2,
+                right: 3,
+                child: Container(
+                  width: 13,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF131D21), width: 2.2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(width: 14),
+
+          // Información del usuario
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Hola,',
+                  style: TextStyle(
+                    color: Color(0xFFCBD5E1),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        firstName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check, size: 9.5, color: Colors.black),
+                    ),
+                    const Spacer(),
+                    // Badge ícono de campana / recordatorio
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2A30),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF263C45)),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active_outlined,
+                        size: 14,
+                        color: Color(0xFF34D399),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$cargo • $dependencia',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF8FA3AF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F3224),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF176044)),
+                      ),
+                      child: Text(
+                        user.isAdmin
+                            ? 'ADMIN ACTIVO'
+                            : (user.isSupervisor ? 'SUPERVISOR ACTIVO' : 'USUARIO ACTIVO'),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF10B981),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '•  DNI ${_maskDni(user.documentNumber)}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF8FA3AF),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultOvalAvatar(UserModel user) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF162E2A), Color(0xFF0C191B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.person_rounded, color: Color(0xFF34D399), size: 30),
+            const SizedBox(height: 2),
+            Text(
+              _getInitials(user.fullName),
+              style: const TextStyle(
+                color: Color(0xFF6EE7B7),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
             ),
           ],
         ),
@@ -551,72 +662,577 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  Widget _buildEventsSection(BuildContext context, UserModel user) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final canCreate = user.canManageAttendanceQr;
+  Widget _buildJornadaDeHoyCard(
+    BuildContext context,
+    UserModel user,
+    AttendanceModel? entry,
+    AttendanceModel? exit,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131D21),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Encabezado: ⏰ Jornada de Hoy  -  Turno Mañana • En curso
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.access_time_filled_rounded, color: Color(0xFF10B981), size: 17),
+                  SizedBox(width: 8),
+                  Text(
+                    'Jornada de Hoy',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF18262B),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF263C45)),
+                ),
+                child: Text(
+                  '${_getCurrentShiftLabel()} • En curso',
+                  style: const TextStyle(
+                    color: Color(0xFFCBD5E1),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
+          const SizedBox(height: 16),
+
+          // Dos columnas: Entrada (Izquierda) y Salida (Derecha)
+          Row(
+            children: [
+              // Columna Entrada
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0E171A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF1B2B31)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Entrada',
+                            style: TextStyle(
+                              color: Color(0xFFCBD5E1),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: entry != null
+                                  ? (entry.status == AttendanceStatus.LATE
+                                      ? const Color(0xFF38290E)
+                                      : const Color(0xFF0E382B))
+                                  : const Color(0xFF222E33),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              entry != null
+                                  ? (entry.status == AttendanceStatus.LATE ? 'Tarde' : 'A tiempo')
+                                  : 'Pendiente',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: entry != null
+                                    ? (entry.status == AttendanceStatus.LATE
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFF10B981))
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        entry != null ? _formatTime(entry.timestamp) : '--:-- AM',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: entry != null ? Colors.white : const Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            entry != null ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                            size: 11.5,
+                            color: entry != null ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              entry?.observation?.isNotEmpty == true
+                                  ? entry!.observation!
+                                  : 'Molinete Principal #02',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF8FA3AF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Columna Salida
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0E171A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF1B2B31)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Salida',
+                            style: TextStyle(
+                              color: Color(0xFFCBD5E1),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: exit != null
+                                  ? const Color(0xFF0E382B)
+                                  : const Color(0xFF38290E),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              exit != null ? 'Completado' : 'Pendiente',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: exit != null
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFF59E0B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        exit != null ? _formatTime(exit.timestamp) : '--:-- PM',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: exit != null ? Colors.white : const Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time_rounded,
+                            size: 11.5,
+                            color: exit != null ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              exit != null ? 'Jornada Finalizada' : 'Previsto: 04:30 PM',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF8FA3AF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceControlSection(BuildContext context, UserModel user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header de sección: CONTROL DE ASISTENCIA  -  🔒 SHA-256
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'CONTROL DE ASISTENCIA',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 0.6,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D2821),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF176044)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock_rounded, size: 11.5, color: Color(0xFF10B981)),
+                  SizedBox(width: 4),
+                  Text(
+                    'SHA-256',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF10B981),
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Tarjeta Principal de Escaneo
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF131D21),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Fila superior: Squircle QR + Badge Cámara Lista
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F2D24),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF176044), width: 1.2),
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: Color(0xFF10B981),
+                          size: 26,
+                        ),
+                      ),
+                      Positioned(
+                        top: -3,
+                        right: -3,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF34D399),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFF131D21), width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E231D),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF165942)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, color: Color(0xFF10B981), size: 6.5),
+                        SizedBox(width: 5),
+                        Text(
+                          'Cámara Lista',
+                          style: TextStyle(
+                            color: Color(0xFF10B981),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              const Text(
+                'Escanear QR Institucional',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.2,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              const Text(
+                'Registra tu ingreso o salida escaneando el código QR oficial proyectado en tu sede física, auditorio o estación de evento.',
+                style: TextStyle(
+                  color: Color(0xFF8FA3AF),
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // Botón Verde Prominente: [ 📷 Iniciar Escáner Oficial ➔ ]
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF34D399), // Verde esmeralda brillante
+                    foregroundColor: const Color(0xFF091417),
+                    elevation: 4,
+                    shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  onPressed: () => _handleEscanearQr(context),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Icon(Icons.camera_alt_outlined, size: 20, color: Color(0xFF091417)),
+                      Text(
+                        'Iniciar Escáner Oficial',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                          color: Color(0xFF091417),
+                        ),
+                      ),
+                      Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFF091417)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ==========================================================
+        // HERRAMIENTAS EXCLUSIVAS DE SUPERVISIÓN Y ADMINISTRACIÓN
+        // ==========================================================
+        if (user.canManageAttendanceQr) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F1A1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1B2E36)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.security_rounded, size: 15, color: Color(0xFF10B981)),
+                    const SizedBox(width: 6),
+                    Text(
+                      user.isAdmin ? 'Módulo de Administración IIAP' : 'Módulo de Supervisor Autorizado',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFCBD5E1),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF10B981),
+                          side: const BorderSide(color: Color(0xFF176044)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onPressed: () => _handleGenerarQr(context, user),
+                        icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                        label: const Text(
+                          'Proyectar QR',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    if (user.isAdmin) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFA78BFA),
+                            side: const BorderSide(color: Color(0xFF5B21B6)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: () => _handleEscanearAsistenciaFacial(context),
+                          icon: const Icon(Icons.face_retouching_natural_rounded, size: 18),
+                          label: const Text(
+                            'Facial IA',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEventsSection(BuildContext context, UserModel user) {
     return ValueListenableBuilder<List<EventModel>>(
       valueListenable: EventService.eventsNotifier,
       builder: (context, events, _) {
-        final activeOrUpcoming = events.where((e) => e.endDate.isAfter(DateTime.now()) || e.isActiveNow).toList();
-        final featuredEvent = activeOrUpcoming.isNotEmpty ? activeOrUpcoming.first : (events.isNotEmpty ? events.first : null);
+        final activeOrUpcoming =
+            events.where((e) => e.endDate.isAfter(DateTime.now()) || e.isActiveNow).toList();
+        final featuredEvent = activeOrUpcoming.isNotEmpty
+            ? activeOrUpcoming.first
+            : (events.isNotEmpty ? events.first : null);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Header de sección: 📅 EVENTOS INSTITUCIONALES  -  Ver todos >
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        'Eventos Institucionales',
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                const Row(
+                  children: [
+                    Icon(Icons.event_note_rounded, color: Color(0xFF10B981), size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'EVENTOS INSTITUCIONALES',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.6,
                       ),
-                      if (activeOrUpcoming.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: ThemeService.primaryColor(context).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${activeOrUpcoming.length}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeService.primaryColor(context),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 TextButton(
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   ),
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const EventsListScreen()),
                     );
                   },
-                  child: const Text('Ver Todos', style: TextStyle(fontSize: 12.5)),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Ver todos',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                      SizedBox(width: 3),
+                      Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF10B981)),
+                    ],
+                  ),
                 ),
               ],
             ),
+
             const SizedBox(height: 10),
 
+            // Card del Evento Destacado
             if (featuredEvent != null) ...[
               InkWell(
                 onTap: () {
@@ -626,137 +1242,195 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                   );
                 },
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(22),
                 child: Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: ThemeService.cardBg(context),
-                    borderRadius: BorderRadius.circular(18),
+                    color: const Color(0xFF131D21),
+                    borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: featuredEvent.isActiveNow
-                          ? const Color(0xFF16A34A).withValues(alpha: 0.6)
-                          : ThemeService.cardBorder(context),
-                      width: featuredEvent.isActiveNow ? 1.5 : 1,
+                          ? const Color(0xFF10B981).withValues(alpha: 0.7)
+                          : const Color(0xFF1F323A),
+                      width: featuredEvent.isActiveNow ? 1.5 : 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Badges: [ REUNIÓN ]  [ Próximo ]  -  Prioridad Alta
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: ThemeService.primaryColor(context).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.event_note_rounded, size: 12, color: ThemeService.primaryColor(context)),
-                                const SizedBox(width: 4),
-                                Text(
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0E382E),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF165942)),
+                                ),
+                                child: Text(
                                   featuredEvent.type.displayName.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
-                                    color: ThemeService.primaryColor(context),
+                                    color: Color(0xFF10B981),
+                                    letterSpacing: 0.4,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: featuredEvent.isActiveNow
-                                  ? const Color(0xFF16A34A).withValues(alpha: 0.15)
-                                  : (isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  size: 6,
-                                  color: featuredEvent.isActiveNow ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: featuredEvent.isActiveNow
+                                      ? const Color(0xFF0F3224)
+                                      : const Color(0xFF38290E),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: featuredEvent.isActiveNow
+                                        ? const Color(0xFF176044)
+                                        : const Color(0xFF6B450B),
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
+                                child: Text(
                                   featuredEvent.isActiveNow ? 'En curso' : 'Próximo',
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
-                                    color: featuredEvent.isActiveNow ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                                    color: featuredEvent.isActiveNow
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFF59E0B),
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          const Text(
+                            'Prioridad Alta',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFBBF24),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+
+                      const SizedBox(height: 12),
+
+                      // Título del evento
                       Text(
                         featuredEvent.title,
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.25,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+
                       const SizedBox(height: 6),
+
+                      // Descripción
+                      if (featuredEvent.description.isNotEmpty) ...[
+                        Text(
+                          featuredEvent.description,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF8FA3AF),
+                            height: 1.35,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      // Ubicación
                       Row(
                         children: [
-                          Icon(Icons.location_on_outlined, size: 13, color: ThemeService.subtextColor(context)),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.location_on_outlined, color: Color(0xFF10B981), size: 14),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               featuredEvent.location,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 11.5,
-                                color: ThemeService.subtextColor(context),
+                                color: Color(0xFFCBD5E1),
+                                fontWeight: FontWeight.w500,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+
+                      const SizedBox(height: 6),
+
+                      // Horario y Duración
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time_rounded, color: Color(0xFF10B981), size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _formatEventDateAndDuration(featuredEvent),
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFFCBD5E1),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Fila inferior: Avatares solapados + X registrados oficialmente  -  Ver detalle ➔
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            '${featuredEvent.attendees.length} registrados',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: ThemeService.primaryColor(context),
-                            ),
-                          ),
                           Row(
+                            children: [
+                              _buildAttendeeAvatars(featuredEvent.attendees),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${featuredEvent.attendees.length} registrados oficialmente',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFCBD5E1),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 'Ver detalle',
                                 style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: ThemeService.subtextColor(context),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF10B981),
                                 ),
                               ),
-                              const SizedBox(width: 2),
-                              Icon(Icons.chevron_right_rounded, size: 15, color: ThemeService.subtextColor(context)),
+                              SizedBox(width: 3),
+                              Icon(Icons.arrow_forward_rounded, color: Color(0xFF10B981), size: 14),
                             ],
                           ),
                         ],
@@ -767,20 +1441,20 @@ class _DashboardTabState extends State<DashboardTab> {
               ),
             ] else ...[
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: ThemeService.cardBg(context),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: ThemeService.cardBorder(context)),
+                  color: const Color(0xFF131D21),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF1F323A)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    Icon(Icons.event_available_rounded, size: 26, color: ThemeService.primaryColor(context)),
-                    const SizedBox(width: 12),
+                    Icon(Icons.event_available_rounded, size: 24, color: Color(0xFF10B981)),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'No hay eventos programados en este momento.',
-                        style: TextStyle(fontSize: 12.5, color: ThemeService.subtextColor(context)),
+                        style: TextStyle(fontSize: 12, color: Color(0xFF8FA3AF)),
                       ),
                     ),
                   ],
@@ -788,15 +1462,14 @@ class _DashboardTabState extends State<DashboardTab> {
               ),
             ],
 
-            if (canCreate) ...[
-              const SizedBox(height: 10),
+            if (user.canManageEvents) ...[
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF10B981),
+                  side: const BorderSide(color: Color(0xFF176044)),
                   padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  side: BorderSide(
-                    color: ThemeService.primaryColor(context).withValues(alpha: 0.5),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 onPressed: () async {
                   final created = await Navigator.of(context).push(
@@ -806,14 +1479,10 @@ class _DashboardTabState extends State<DashboardTab> {
                     EventService.getEvents();
                   }
                 },
-                icon: Icon(Icons.add_circle_outline_rounded, size: 18, color: ThemeService.primaryColor(context)),
-                label: Text(
+                icon: const Icon(Icons.add_circle_outline_rounded, size: 17),
+                label: const Text(
                   'Crear Nuevo Evento Institucional',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: ThemeService.primaryColor(context),
-                  ),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -822,6 +1491,86 @@ class _DashboardTabState extends State<DashboardTab> {
       },
     );
   }
+
+  Widget _buildAttendeeAvatars(List<EventAttendeeModel> attendees) {
+    if (attendees.isEmpty) {
+      return Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2A30),
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFF263C45)),
+        ),
+        child: const Icon(Icons.people_outline_rounded, size: 13, color: Color(0xFF94A3B8)),
+      );
+    }
+
+    final displayList = attendees.take(2).toList();
+    final remaining = attendees.length - displayList.length;
+
+    final colors = [
+      const Color(0xFF5EEAD4), // Teal
+      const Color(0xFF6EE7B7), // Mint
+    ];
+
+    return SizedBox(
+      height: 24,
+      width: (displayList.length * 16.0) + (remaining > 0 ? 24.0 : 8.0),
+      child: Stack(
+        children: [
+          for (int i = 0; i < displayList.length; i++)
+            Positioned(
+              left: i * 14.0,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: colors[i % colors.length],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF131D21), width: 2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _getInitials(displayList[i].userName),
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ),
+          if (remaining > 0)
+            Positioned(
+              left: displayList.length * 14.0,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF263C45),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF131D21), width: 2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '+$remaining',
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // MÓDULO BIOMÉTRICO FACIAL (INSIGHTFACE) PARA ADMINISTRADORES
+  // ===========================================================================
 
   void _handleEscanearAsistenciaFacial(BuildContext context) {
     showModalBottomSheet(
@@ -888,8 +1637,11 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                     child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF2563EB)),
                   ),
-                  title: const Text('Tomar Foto con este Dispositivo (iPad / Móvil)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Usa la cámara frontal/trasera del iPad para capturar el rostro y validarlo con InsightFace', style: TextStyle(fontSize: 12)),
+                  title: const Text('Tomar Foto con este Dispositivo (iPad / Móvil)',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text(
+                      'Usa la cámara frontal/trasera para capturar el rostro y validarlo con InsightFace',
+                      style: TextStyle(fontSize: 12)),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -906,8 +1658,11 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                     child: const Icon(Icons.desktop_windows_rounded, color: Color(0xFF10B981)),
                   ),
-                  title: const Text('Escanear en Estación PC (Webcam en vivo)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Activa la cámara física conectada al computador para escaneo continuo con OpenCV', style: TextStyle(fontSize: 12)),
+                  title: const Text('Escanear en Estación PC (Webcam en vivo)',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text(
+                      'Activa la cámara física conectada al computador para escaneo continuo con OpenCV',
+                      style: TextStyle(fontSize: 12)),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -956,6 +1711,7 @@ class _DashboardTabState extends State<DashboardTab> {
           similarity: (res['similarity_percent'] ?? 85.0).toDouble(),
           timestamp: DateTime.now().toString(),
         );
+        _fetchTodayAttendance();
       } else {
         _showFacialErrorDialog(
           res['message'] ?? 'No se identificó ningún rostro con la coincidencia requerida.',
@@ -1018,6 +1774,7 @@ class _DashboardTabState extends State<DashboardTab> {
           similarity: (res['similarity_percent'] ?? 85.0).toDouble(),
           timestamp: DateTime.now().toString(),
         );
+        _fetchTodayAttendance();
       } else {
         _showFacialErrorDialog(
           res['message'] ?? 'Rostro no coincide con ningún colaborador registrado.',
@@ -1172,7 +1929,9 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                     const SizedBox(height: 12),
                     if (isChecking)
-                      const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
+                      const Center(
+                          child: Padding(
+                              padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
                     else if (statusMessage != null)
                       Container(
                         padding: const EdgeInsets.all(10),
@@ -1215,7 +1974,8 @@ class _DashboardTabState extends State<DashboardTab> {
                                   setDialogState(() {
                                     isChecking = false;
                                     isOnline = true;
-                                    statusMessage = 'Conexión exitosa. Enrolados: ${data['enrolled_users_count'] ?? 1}';
+                                    statusMessage =
+                                        'Conexión exitosa. Enrolados: ${data['enrolled_users_count'] ?? 1}';
                                   });
                                 } else {
                                   setDialogState(() {
@@ -1228,7 +1988,8 @@ class _DashboardTabState extends State<DashboardTab> {
                                 setDialogState(() {
                                   isChecking = false;
                                   isOnline = false;
-                                  statusMessage = 'No se pudo conectar ($e).\nVerifica la IP y que Windows Firewall permita el puerto 8000.';
+                                  statusMessage =
+                                      'No se pudo conectar ($e).\nVerifica la IP y que Windows Firewall permita el puerto 8000.';
                                 });
                               }
                             },
