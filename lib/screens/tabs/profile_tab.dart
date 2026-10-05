@@ -1271,27 +1271,54 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+
+  Color _cardBg(BuildContext context) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    return hasWallpaper
+        ? ThemeService.cardBg(context).withValues(alpha: 0.82)
+        : ThemeService.cardBg(context);
+  }
+
+  Color _cardBorder(BuildContext context) {
+    return ThemeService.cardBorder(context);
+  }
+
+  Color _innerBoxBg(BuildContext context) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    return hasWallpaper
+        ? ThemeService.containerColor(context).withValues(alpha: 0.22)
+        : ThemeService.containerColor(context).withValues(alpha: 0.35);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ThemeService.accentColorNotifier,
+        WallpaperService.wallpaperNotifier,
+      ]),
+      builder: (context, _) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+        final primaryColor = ThemeService.primaryColor(context);
 
-    const mintGreen = Color(0xFF34D399);
-    const darkSlate = Color(0xFF0F172A);
+        const mintGreen = Color(0xFF34D399);
+        const darkSlate = Color(0xFF0F172A);
 
-    return ValueListenableBuilder<UserModel?>(
-      valueListenable: StorageService.currentUserNotifier,
-      builder: (context, user, _) {
-        if (user == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        return ValueListenableBuilder<UserModel?>(
+          valueListenable: StorageService.currentUserNotifier,
+          builder: (context, user, _) {
+            if (user == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        final roleDisplayName = user.role == UserRole.ADMIN
-            ? 'ADMIN IIAP'
-            : (user.isSuperAdmin ? 'SUPERADMIN IIAP' : user.role.displayName.toUpperCase());
+            final roleDisplayName = user.role == UserRole.ADMIN
+                ? 'ADMIN IIAP'
+                : (user.isSuperAdmin ? 'SUPERADMIN IIAP' : user.role.displayName.toUpperCase());
 
-        return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF0A0F16) : theme.scaffoldBackgroundColor,
+            return Scaffold(
+              backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
           body: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Responsive.constrained(
@@ -1321,7 +1348,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+                                      color: primaryColor.withValues(alpha: 0.5),
                                       width: 2.5,
                                     ),
                                   ),
@@ -1357,7 +1384,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                   color: const Color(0xFF22C55E),
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF0A0F16) : Colors.white,
+                                    color: _cardBg(context),
                                     width: 2.5,
                                   ),
                                 ),
@@ -1373,10 +1400,10 @@ class _ProfileTabState extends State<ProfileTab> {
                                 child: Container(
                                   padding: const EdgeInsets.all(7),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF0D9488),
+                                    color: ThemeService.primaryColor(context),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: isDark ? const Color(0xFF0A0F16) : Colors.white,
+                                      color: _cardBg(context),
                                       width: 2.5,
                                     ),
                                   ),
@@ -1480,7 +1507,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     height: 48,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? const Color(0xFF131D27) : const Color(0xFFF1F5F9),
+                        backgroundColor: _cardBg(context),
                         foregroundColor: const Color(0xFFEF4444),
                         elevation: 0,
                         side: BorderSide(
@@ -1544,6 +1571,8 @@ class _ProfileTabState extends State<ProfileTab> {
         );
       },
     );
+      },
+    );
   }
 
   /// Tarjeta de Tema y Apariencia unificada según captura oficial
@@ -1561,10 +1590,10 @@ class _ProfileTabState extends State<ProfileTab> {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
+              color: _cardBorder(context),
               width: 1.2,
             ),
           ),
@@ -1636,7 +1665,7 @@ class _ProfileTabState extends State<ProfileTab> {
                             height: 64,
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF1F5F9),
+                              color: _innerBoxBg(context),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected
@@ -1709,10 +1738,10 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+                        color: _innerBoxBg(context),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+                          color: _cardBorder(context).withValues(alpha: 0.6),
                         ),
                       ),
                       child: Row(
@@ -1784,10 +1813,10 @@ class _ProfileTabState extends State<ProfileTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
+          color: _cardBorder(context),
           width: 1.2,
         ),
       ),
@@ -1878,10 +1907,10 @@ class _ProfileTabState extends State<ProfileTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+          color: _innerBoxBg(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+            color: _cardBorder(context).withValues(alpha: 0.6),
           ),
         ),
         child: Row(
@@ -1946,10 +1975,10 @@ class _ProfileTabState extends State<ProfileTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF131D27) : ThemeService.cardBg(context),
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF1E2C38) : ThemeService.cardBorder(context),
+          color: _cardBorder(context),
           width: 1.2,
         ),
       ),
@@ -2257,10 +2286,10 @@ class _ProfileTabState extends State<ProfileTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0D1722) : const Color(0xFFF8FAFC),
+          color: _innerBoxBg(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isDark ? const Color(0xFF1A2634) : const Color(0xFFE2E8F0),
+            color: _cardBorder(context).withValues(alpha: 0.6),
           ),
         ),
         child: Row(

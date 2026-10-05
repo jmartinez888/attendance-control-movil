@@ -17,7 +17,15 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuth();
+    });
+    // Fallback de seguridad por si Hot Restart interrumpe el ciclo
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _checkAuth();
+      }
+    });
   }
 
   Future<void> _checkAuth() async {

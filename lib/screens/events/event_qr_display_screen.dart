@@ -562,8 +562,8 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 (_selectedMode == EventQrMode.registered
-                                    ? 'QR PARA USUARIO REGISTRADO (APP)'
-                                    : 'QR PARA USUARIO EXTERNO (WEB)') +
+                                    ? 'QR PARA USUARIO REGISTRADO'
+                                    : 'QR PARA USUARIO EXTERNO') +
                                 (_selectedShift != null
                                     ? ' • ${_selectedShift == "manana" ? "MAÑANA" : _selectedShift == "tarde" ? "TARDE" : "NOCHE"}'
                                     : ''),
