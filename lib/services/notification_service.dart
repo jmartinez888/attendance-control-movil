@@ -15,6 +15,34 @@ class NotificationService {
 
   static bool _isInitialized = false;
 
+  static const String _keyNotificationsMuted = 'notifications_muted_v1';
+  static final ValueNotifier<bool> isMutedNotifier = ValueNotifier<bool>(false);
+
+  static Future<void> _loadMutedPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      isMutedNotifier.value = prefs.getBool(_keyNotificationsMuted) ?? false;
+    } catch (_) {}
+  }
+
+  /// Alterna el modo silencio de notificaciones. Devuelve true si quedó silenciado.
+  static Future<bool> toggleMute() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final newMuted = !isMutedNotifier.value;
+      isMutedNotifier.value = newMuted;
+      await prefs.setBool(_keyNotificationsMuted, newMuted);
+      if (newMuted) {
+        await cancelAll();
+      } else {
+        await scheduleAllAttendanceReminders();
+      }
+      return newMuted;
+    } catch (_) {
+      return isMutedNotifier.value;
+    }
+  }
+
   // IDs de notificaciones del sistema
   static const int ID_MORNING_ENTRY = 1001;
   static const int ID_MORNING_EXIT = 1002;
@@ -39,6 +67,8 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
+      await _loadMutedPreference();
+
       // 1. Inicializar zonas horarias (Perú / América Latina) para programación offline
       tz.initializeTimeZones();
       try {
@@ -143,6 +173,12 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    // Si el usuario silenció las notificaciones en la app, no se emite ninguna alerta
+    if (isMutedNotifier.value) {
+      debugPrint('Notificaciones silenciadas. Descartando id=$id: $title');
+      return;
+    }
+
     try {
       if (!kIsWeb && Platform.isWindows) {
         final notification = LocalNotification(
@@ -254,6 +290,11 @@ class NotificationService {
 
   /// Programa todas las alertas diarias de asistencia institucional en el SO
   static Future<void> scheduleAllAttendanceReminders() async {
+    if (isMutedNotifier.value) {
+      await cancelAll();
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
 
     final morningEntryEnabled = prefs.getBool('notif_morning_entry') ?? true;
@@ -323,6 +364,7 @@ class NotificationService {
     required DateTime startDate,
   }) async {
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
+    if (isMutedNotifier.value) return;
 
     try {
       final prefs = await SharedPreferences.getInstance();

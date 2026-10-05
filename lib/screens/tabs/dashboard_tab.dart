@@ -2503,37 +2503,8 @@ class _DashboardTabState extends State<DashboardTab> {
 
         const Spacer(),
 
-        // Campana con punto indicador
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF142226),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF1F333B)),
-              ),
-              child: const Icon(
-                Icons.notifications_none_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            Positioned(
-              top: 2,
-              right: 2,
-              child: Container(
-                width: 7,
-                height: 7,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
+        // Campana interactiva con modo silencio
+        _buildCircularMuteBell(context),
 
         const SizedBox(width: 8),
 
@@ -2787,36 +2758,7 @@ class _DashboardTabState extends State<DashboardTab> {
           },
         ),
         const SizedBox(width: 8),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF142226),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF1F333B)),
-              ),
-              child: const Icon(
-                Icons.notifications_none_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            Positioned(
-              top: 2,
-              right: 2,
-              child: Container(
-                width: 7,
-                height: 7,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
+_buildCircularMuteBell(context),
       ],
     );
   }
@@ -3568,6 +3510,193 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
+  
+  Widget _buildMuteNotificationBell(BuildContext context, {double iconSize = 22, EdgeInsets padding = EdgeInsets.zero}) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: NotificationService.isMutedNotifier,
+      builder: (context, isMuted, _) {
+        return IconButton(
+          onPressed: () async {
+            final muted = await NotificationService.toggleMute();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+                        color: muted ? const Color(0xFFEF4444) : ThemeService.primaryColor(context),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          muted
+                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
+                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFF131D21),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          icon: Icon(
+            isMuted ? Icons.notifications_off_rounded : Icons.notifications_none_rounded,
+            color: isMuted ? const Color(0xFFEF4444) : Colors.white,
+            size: iconSize,
+          ),
+          padding: padding,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          splashRadius: 20,
+          tooltip: isMuted ? 'Notificaciones silenciadas (Tocar para activar)' : 'Notificaciones activadas (Tocar para silenciar)',
+        );
+      },
+    );
+  }
+
+  Widget _buildCircularMuteBell(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: NotificationService.isMutedNotifier,
+      builder: (context, isMuted, _) {
+        return InkWell(
+          onTap: () async {
+            final muted = await NotificationService.toggleMute();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+                        color: muted ? const Color(0xFFEF4444) : ThemeService.primaryColor(context),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          muted
+                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
+                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFF131D21),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: isMuted ? const Color(0xFF2B1414) : const Color(0xFF142226),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isMuted ? const Color(0xFF5A2020) : const Color(0xFF1F333B),
+                  ),
+                ),
+                child: Icon(
+                  isMuted ? Icons.notifications_off_rounded : Icons.notifications_none_rounded,
+                  color: isMuted ? const Color(0xFFEF4444) : Colors.white,
+                  size: 20,
+                ),
+              ),
+              if (!isMuted)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF59E0B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSmallWelcomeMuteBell(BuildContext context) {
+    final themeColor = ThemeService.primaryColor(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: NotificationService.isMutedNotifier,
+      builder: (context, isMuted, _) {
+        return InkWell(
+          onTap: () async {
+            final muted = await NotificationService.toggleMute();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+                        color: muted ? const Color(0xFFEF4444) : themeColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          muted
+                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
+                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFF131D21),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(15),
+          child: Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: isMuted ? const Color(0xFF2E1212) : const Color(0xFF1A2A30),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isMuted ? const Color(0xFF7F1D1D) : themeColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Icon(
+              isMuted ? Icons.notifications_off_rounded : Icons.notifications_active_outlined,
+              size: 14,
+              color: isMuted ? const Color(0xFFEF4444) : themeColor,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildUserTopHeader(BuildContext context, UserModel user) {
     return Row(
       children: [
@@ -3636,30 +3765,7 @@ class _DashboardTabState extends State<DashboardTab> {
           },
         ),
         const SizedBox(width: 10),
-        IconButton(
-          onPressed: () {
-            NotificationService.checkAndTriggerCheckoutReminder();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 18),
-                    SizedBox(width: 10),
-                    Expanded(child: Text('Notificaciones sincronizadas. Sin alertas pendientes.', style: TextStyle(fontSize: 12.5))),
-                  ],
-                ),
-                backgroundColor: const Color(0xFF131D21),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          },
-          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 22),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          splashRadius: 20,
-        ),
+        _buildMuteNotificationBell(context),
         const SizedBox(width: 6),
         InkWell(
           onTap: () {
@@ -3696,6 +3802,8 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Widget _buildUserWelcomeProfileCard(BuildContext context, UserModel user) {
+    final themeColor = ThemeService.primaryColor(context);
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
     final nameParts = user.fullName.trim().split(RegExp(r'\s+'));
     final firstName = nameParts.isNotEmpty ? nameParts.first : 'Usuario';
     final cargo = user.office.isNotEmpty ? user.office : (user.position?.isNotEmpty == true ? user.position! : 'Servidor Público');
@@ -3704,9 +3812,9 @@ class _DashboardTabState extends State<DashboardTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       decoration: BoxDecoration(
-        color: const Color(0xFF131D21),
+        color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+        border: Border.all(color: themeColor.withValues(alpha: 0.22), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -3784,19 +3892,11 @@ class _DashboardTabState extends State<DashboardTab> {
                     const SizedBox(width: 5),
                     Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: themeColor, shape: BoxShape.circle),
                       child: const Icon(Icons.check, size: 9.5, color: Colors.black),
                     ),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2A30),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF263C45)),
-                      ),
-                      child: const Icon(Icons.notifications_active_outlined, size: 14, color: Color(0xFF34D399)),
-                    ),
+                    _buildSmallWelcomeMuteBell(context),
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -3873,12 +3973,15 @@ class _DashboardTabState extends State<DashboardTab> {
     AttendanceModel? entry,
     AttendanceModel? exit,
   ) {
+    final themeColor = ThemeService.primaryColor(context);
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131D21),
+        color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+        border: Border.all(color: themeColor.withValues(alpha: 0.22), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
@@ -3893,11 +3996,11 @@ class _DashboardTabState extends State<DashboardTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.access_time_filled_rounded, color: Color(0xFF10B981), size: 17),
-                  SizedBox(width: 8),
-                  Text('Jornada de Hoy', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.2)),
+                  Icon(Icons.access_time_filled_rounded, color: themeColor, size: 17),
+                  const SizedBox(width: 8),
+                  const Text('Jornada de Hoy', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.2)),
                 ],
               ),
               Container(
@@ -3905,7 +4008,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF18262B),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF263C45)),
+                  border: Border.all(color: themeColor.withValues(alpha: 0.25)),
                 ),
                 child: Text('${_getCurrentShiftLabel()} • En curso', style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 10, fontWeight: FontWeight.w600)),
               ),
@@ -4047,6 +4150,9 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Widget _buildUserAttendanceControlSection(BuildContext context, UserModel user) {
+    final themeColor = ThemeService.primaryColor(context);
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -4057,16 +4163,16 @@ class _DashboardTabState extends State<DashboardTab> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
               decoration: BoxDecoration(
-                color: const Color(0xFF0D2821),
+                color: themeColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF176044)),
+                border: Border.all(color: themeColor.withValues(alpha: 0.35)),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_rounded, size: 11.5, color: Color(0xFF10B981)),
-                  SizedBox(width: 4),
-                  Text('SHA-256', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF10B981), letterSpacing: 0.4)),
+                  Icon(Icons.lock_rounded, size: 11.5, color: themeColor),
+                  const SizedBox(width: 4),
+                  Text('SHA-256', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: themeColor, letterSpacing: 0.4)),
                 ],
               ),
             ),
@@ -4076,9 +4182,9 @@ class _DashboardTabState extends State<DashboardTab> {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0xFF131D21),
+            color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+            border: Border.all(color: themeColor.withValues(alpha: 0.25), width: 1.2),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.25),
@@ -4099,11 +4205,11 @@ class _DashboardTabState extends State<DashboardTab> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F2D24),
+                          color: themeColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF176044), width: 1.2),
+                          border: Border.all(color: themeColor.withValues(alpha: 0.35), width: 1.2),
                         ),
-                        child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF10B981), size: 26),
+                        child: Icon(Icons.qr_code_scanner_rounded, color: themeColor, size: 26),
                       ),
                       Positioned(
                         top: -3,
@@ -4112,7 +4218,7 @@ class _DashboardTabState extends State<DashboardTab> {
                           width: 10,
                           height: 10,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF34D399),
+                            color: themeColor,
                             shape: BoxShape.circle,
                             border: Border.all(color: const Color(0xFF131D21), width: 2),
                           ),
@@ -4123,16 +4229,16 @@ class _DashboardTabState extends State<DashboardTab> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0E231D),
+                      color: themeColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF165942)),
+                      border: Border.all(color: themeColor.withValues(alpha: 0.35)),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.circle, color: Color(0xFF10B981), size: 6.5),
-                        SizedBox(width: 5),
-                        Text('Cámara Lista', style: TextStyle(color: Color(0xFF10B981), fontSize: 10.5, fontWeight: FontWeight.bold)),
+                        Icon(Icons.circle, color: themeColor, size: 6.5),
+                        const SizedBox(width: 5),
+                        Text('Cámara Lista', style: TextStyle(color: themeColor, fontSize: 10.5, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -4148,20 +4254,20 @@ class _DashboardTabState extends State<DashboardTab> {
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF34D399),
+                    backgroundColor: themeColor,
                     foregroundColor: const Color(0xFF091417),
                     elevation: 4,
-                    shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+                    shadowColor: themeColor.withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                   onPressed: () => _handleEscanearQr(context),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.camera_alt_outlined, size: 20, color: Color(0xFF091417)),
-                      Text('Iniciar Escáner Oficial', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Color(0xFF091417))),
-                      Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFF091417)),
+                      const Icon(Icons.camera_alt_outlined, size: 20, color: Color(0xFF091417)),
+                      const Text('Iniciar Escáner Oficial', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Color(0xFF091417))),
+                      const Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFF091417)),
                     ],
                   ),
                 ),
