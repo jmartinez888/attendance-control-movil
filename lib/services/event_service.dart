@@ -86,6 +86,7 @@ class EventService {
     required bool requiresAttendance,
     String? organizationalUnit,
     List<EventShift>? shifts,
+    String? imageUrl,
   }) async {
     final currentUser = StorageService.currentUser;
     if (currentUser == null || !currentUser.canManageAttendanceQr) {
@@ -114,6 +115,7 @@ class EventService {
       attendees: [],
       organizationalUnit: organizationalUnit?.trim(),
       shifts: shifts ?? [],
+      imageUrl: imageUrl,
     );
 
     // Intentar guardar en backend
@@ -131,6 +133,8 @@ class EventService {
           'organizational_unit': organizationalUnit.trim(),
         if (shifts != null && shifts.isNotEmpty)
           'shifts': shifts.map((s) => s.toJson()).toList(),
+        if (imageUrl != null && imageUrl.isNotEmpty)
+          'image_url': imageUrl,
       };
       final res = await ApiClient.post(
         ApiConfig.eventsAll,
@@ -172,6 +176,8 @@ class EventService {
           'organizational_unit': event.organizationalUnit,
         if (event.shifts.isNotEmpty)
           'shifts': event.shifts.map((s) => s.toJson()).toList(),
+        if (event.imageUrl != null)
+          'image_url': event.imageUrl,
       };
       final res = await ApiClient.patch(
         ApiConfig.eventById(event.id),

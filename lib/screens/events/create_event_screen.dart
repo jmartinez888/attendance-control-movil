@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -35,6 +37,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
   late bool _requiresAttendance;
+  String? _eventImageUrl;
 
   // Turnos Independientes del Evento
   bool _hasManana = true;
@@ -81,6 +84,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _locationController = TextEditingController(text: edit?.location ?? 'IIAP - Sede Central');
 
     _selectedType = edit?.type ?? EventType.CAPACITACION;
+    _eventImageUrl = edit?.imageUrl;
 
     final currentUser = StorageService.currentUser;
     if (_uoController.text.trim().isEmpty) {
@@ -141,6 +145,158 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         _nocheEnd = endTod;
       }
     }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 800,
+        imageQuality: 82,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() {
+          _eventImageUrl = base64String;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar imagen: $e'), backgroundColor: const Color(0xFFDC2626)),
+        );
+      }
+    }
+  }
+
+  void _showImageOptions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF131D21) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF64748B),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Foto de Portada del Evento',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Selecciona una imagen institucional o captura una foto del recinto.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Color(0xFF10B981)),
+                ),
+                title: const Text('Galería de Fotos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Subir fotografía desde tu dispositivo', style: TextStyle(fontSize: 11.5)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF38BDF8)),
+                ),
+                title: const Text('Tomar Fotografía con Cámara', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Fotografiar el auditorio o sala en vivo', style: TextStyle(fontSize: 11.5)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              const Divider(height: 20),
+              const Text('Presets Institucionales Oficiales:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF34D399))),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        side: const BorderSide(color: Color(0xFF1F323A)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _eventImageUrl = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80';
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Auditorio Principal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        side: const BorderSide(color: Color(0xFF1F323A)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _eventImageUrl = 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80';
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Sala de Innovación', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              if (_eventImageUrl != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() => _eventImageUrl = null);
+                      Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 18),
+                    label: const Text('Quitar Foto de Portada', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   TimeOfDay _parseTimeOfDay(String timeStr, {required int defaultHour, required int defaultMinute}) {
@@ -311,6 +467,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           requiresAttendance: _requiresAttendance,
           organizationalUnit: uoVal,
           shifts: activeShifts,
+          imageUrl: _eventImageUrl,
         );
         await EventService.updateEvent(updated);
         if (!mounted) return;
@@ -326,6 +483,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           requiresAttendance: _requiresAttendance,
           organizationalUnit: uoVal,
           shifts: activeShifts,
+          imageUrl: _eventImageUrl,
         );
         if (!mounted) return;
         await _showSuccessModal(created);
@@ -1405,6 +1563,126 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                     const SizedBox(height: 18),
 
+                    // FOTO DE PORTADA DEL EVENTO (CON PERSISTENCIA)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Foto de Portada del Evento',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (_eventImageUrl != null)
+                          InkWell(
+                            onTap: _showImageOptions,
+                            child: const Text(
+                              'Cambiar Foto',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF34D399)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: _showImageOptions,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        height: 160,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _eventImageUrl != null ? mintGreen : cardBorder,
+                            width: _eventImageUrl != null ? 1.5 : 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: _eventImageUrl != null
+                              ? Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    if (_eventImageUrl!.startsWith('data:image'))
+                                      Image.memory(
+                                        base64Decode(_eventImageUrl!.split(',').last),
+                                        fit: BoxFit.cover,
+                                      )
+                                    else
+                                      Image.network(
+                                        _eventImageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                          child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
+                                        ),
+                                      ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black.withValues(alpha: 0.65),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 10,
+                                      left: 12,
+                                      right: 12,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Row(
+                                            children: [
+                                              Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+                                              SizedBox(width: 5),
+                                              Text('Foto vinculada al evento', style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                          IconButton(
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFF87171), size: 20),
+                                            onPressed: () => setState(() => _eventImageUrl = null),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF064E3B).withValues(alpha: 0.3),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.add_a_photo_outlined, color: mintGreen, size: 26),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Subir Foto de Portada (Opcional)',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Cámara, galería o presets institucionales',
+                                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     // TÍTULO DEL EVENTO
                     Row(
                       children: [

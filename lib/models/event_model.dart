@@ -218,6 +218,7 @@ class EventModel {
   final List<String> managerIds;
   final String? organizationalUnit;
   final List<EventShift> shifts;
+  final String? imageUrl;
 
   EventModel({
     required this.id,
@@ -239,6 +240,7 @@ class EventModel {
     this.managerIds = const [],
     this.organizationalUnit,
     this.shifts = const [],
+    this.imageUrl,
   });
 
   bool canUserManageEvent(String? userId, String? userRole) {
@@ -326,6 +328,7 @@ class EventModel {
       managerIds: parsedManagerIds,
       organizationalUnit: json['organizational_unit']?.toString() ?? json['organizationalUnit']?.toString(),
       shifts: parsedShifts,
+      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString() ?? json['photo_url']?.toString(),
     );
   }
 
@@ -350,6 +353,7 @@ class EventModel {
       'manager_ids': managerIds,
       'organizational_unit': organizationalUnit,
       'shifts': shifts.map((s) => s.toJson()).toList(),
+      'image_url': imageUrl,
     };
   }
 
@@ -373,6 +377,7 @@ class EventModel {
     List<String>? managerIds,
     String? organizationalUnit,
     List<EventShift>? shifts,
+    String? imageUrl,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -394,6 +399,7 @@ class EventModel {
       managerIds: managerIds ?? this.managerIds,
       organizationalUnit: organizationalUnit ?? this.organizationalUnit,
       shifts: shifts ?? this.shifts,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }

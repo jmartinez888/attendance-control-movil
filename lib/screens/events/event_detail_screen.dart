@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1245,6 +1246,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 0. PORTADA OFICIAL DEL EVENTO (SI POSEE)
+                  if (_currentEvent.imageUrl != null && _currentEvent.imageUrl!.trim().isNotEmpty) ...[
+                    Container(
+                      height: 190,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF1F323A) : const Color(0xFFCBD5E1),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(19),
+                        child: _currentEvent.imageUrl!.startsWith('data:image')
+                            ? Image.memory(
+                                base64Decode(_currentEvent.imageUrl!.split(',').last),
+                                fit: BoxFit.cover,
+                              )
+                            : Image.network(
+                                _currentEvent.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Icon(Icons.apartment_rounded, color: Color(0xFF10B981), size: 48),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+
                   // 1. FILA DE BADGES SUPERIORES
                   Row(
                     children: [
