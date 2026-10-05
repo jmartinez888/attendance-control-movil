@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/event_model.dart';
+import '../../models/user_model.dart';
 import '../../services/event_service.dart';
+import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_button.dart';
@@ -45,13 +47,23 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   TimeOfDay _nocheEnd = const TimeOfDay(hour: 21, minute: 30);
 
   bool _isSubmitting = false;
+  bool _isCustomUo = false;
 
-  static const List<String> _uoSugeridas = [
-    'Laboratorio de IA',
-    'Dirección de Investigación',
-    'Presidencia',
-    'Tecnologías (OTI)',
-    'Recursos Humanos',
+  static const List<String> _uoOficiales = [
+    'Presidencia Ejecutiva',
+    'Dirección de Investigación en Recursos Naturales (DIRN)',
+    'Dirección de Investigación e Información Ambiental (DIIA)',
+    'Dirección de Investigación en Manejo Integral del Bosque (DIMIB)',
+    'Laboratorio de Inteligencia Artificial (IA)',
+    'Oficina de Tecnologías de Información (OTI)',
+    'Oficina de Recursos Humanos (ORH)',
+    'Oficina de Administración y Finanzas (OAF)',
+    'Estación Experimental Allpahuayo',
+    'Estación Experimental Jenaro Herrera',
+    'Estación Experimental Quistococha',
+    'Sede Regional San Martín (Tarapoto)',
+    'Sede Regional Ucayali (Pucallpa)',
+    'Sede Regional Madre de Dios',
   ];
 
   static const List<String> _ubicacionesSugeridas = [
@@ -74,6 +86,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _locationController = TextEditingController(text: edit?.location ?? 'IIAP - Sede Central');
 
     _selectedType = edit?.type ?? EventType.CAPACITACION;
+
+    final currentUser = StorageService.currentUser;
+    if (_uoController.text.trim().isEmpty) {
+      if (currentUser?.department != null && currentUser!.department!.trim().isNotEmpty) {
+        _uoController.text = currentUser.department!.trim();
+      } else {
+        _uoController.text = _uoOficiales.first;
+      }
+    } else {
+      if (!_uoOficiales.any((u) => u.toLowerCase() == _uoController.text.trim().toLowerCase())) {
+        _isCustomUo = true;
+      }
+    }
 
     final initialStart = edit?.startDate ?? now.add(const Duration(hours: 1));
     _startDate = DateTime(initialStart.year, initialStart.month, initialStart.day);
@@ -372,6 +397,319 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
+  void _openEventTypeSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: ThemeService.cardBg(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Icon(Icons.category_rounded, size: 22, color: Color(0xFF2563EB)),
+                  SizedBox(width: 10),
+                  Text(
+                    'Seleccionar Tipo de Evento',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Elige la categoría oficial del evento institucional',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...EventType.values.map((type) {
+                final isSelected = _selectedType == type;
+                final color = _getTypeColor(type);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedType = type);
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? color.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? color
+                              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(_getTypeIcon(type), color: color, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              type.displayName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected
+                                    ? (isDark ? Colors.white : color)
+                                    : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(Icons.check_circle_rounded, color: color, size: 22)
+                          else
+                            Icon(Icons.circle_outlined,
+                                color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1), size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openUoSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = ThemeService.primaryColor(context);
+    String searchQuery = '';
+    final searchController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredUos = _uoOficiales.where((uo) {
+              if (searchQuery.trim().isEmpty) return true;
+              return uo.toLowerCase().contains(searchQuery.toLowerCase());
+            }).toList();
+
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              decoration: BoxDecoration(
+                color: ThemeService.cardBg(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.apartment_rounded, size: 22, color: primary),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Seleccionar Unidad Organizativa (UO)',
+                              style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Direcciones, Oficinas y Estaciones Oficiales del IIAP',
+                              style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // Buscador en vivo
+                  TextField(
+                    controller: searchController,
+                    onChanged: (val) => setModalState(() => searchQuery = val),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar unidad organizativa...',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        ...filteredUos.map((uo) {
+                          final isSelected = _uoController.text.trim().toLowerCase() == uo.toLowerCase();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _uoController.text = uo;
+                                  _isCustomUo = false;
+                                });
+                                Navigator.pop(ctx);
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? primary.withValues(alpha: isDark ? 0.2 : 0.1)
+                                      : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? primary
+                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                    width: isSelected ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.business_rounded,
+                                      size: 18,
+                                      color: isSelected ? primary : const Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        uo,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          color: isSelected
+                                              ? (isDark ? Colors.white : primary)
+                                              : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                                        ),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(Icons.check_circle_rounded, color: primary, size: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        const Divider(height: 20),
+                        // Opción personalizada
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _isCustomUo = true;
+                              _uoController.clear();
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                style: BorderStyle.solid,
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.edit_note_rounded, size: 20, color: Color(0xFFF59E0B)),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Escribir otra Unidad / Oficina personalizada...',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -453,56 +791,91 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 24),
 
-                  // 1. Selector de Tipo de Evento (ChoiceChips con Iconos y Colores)
-                  Text(
-                    'Tipo de Evento',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF334155),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: EventType.values.map((type) {
-                      final isSelected = _selectedType == type;
-                      final typeColor = _getTypeColor(type);
-                      return ChoiceChip(
-                        selected: isSelected,
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getTypeIcon(type),
-                              size: 16,
-                              color: isSelected ? Colors.white : typeColor,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              type.displayName,
-                              style: TextStyle(
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                fontSize: 12.5,
-                                color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF334155)),
-                              ),
-                            ),
-                          ],
+                  // 1. Selector de Tipo de Evento (Selector Desplegable Premium)
+                  Row(
+                    children: [
+                      Text(
+                        'Tipo de Evento *',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF334155),
                         ),
-                        selectedColor: typeColor,
-                        backgroundColor: isDark ? ThemeService.cardBg(context) : const Color(0xFFF1F5F9),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: isSelected ? typeColor : (isDark ? Colors.white12 : const Color(0xFFCBD5E1)),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _getTypeColor(_selectedType).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Selector',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: _getTypeColor(_selectedType),
                           ),
                         ),
-                        onSelected: (val) {
-                          if (val) setState(() => _selectedType = type);
-                        },
-                      );
-                    }).toList(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: _openEventTypeSelector,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: _getTypeColor(_selectedType).withValues(alpha: 0.5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _getTypeColor(_selectedType).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(_getTypeIcon(_selectedType), color: _getTypeColor(_selectedType), size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _selectedType.displayName,
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Toca para cambiar la categoría del evento',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            size: 24,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -522,47 +895,116 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 18),
 
-                  // 3. Unidad Organizativa (UO) con Selectores Rápidos
-                  AppTextField(
-                    controller: _uoController,
-                    label: 'Unidad Organizativa (UO)',
-                    hint: 'Ej. Laboratorio de IA, Dirección de Investigación, Presidencia...',
-                    prefixIcon: Icons.apartment_rounded,
+                  // 3. Unidad Organizativa (UO) - Selector Desplegable Oficial
+                  Row(
+                    children: [
+                      Text(
+                        'Unidad Organizativa (UO) *',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF334155),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Builder(
+                        builder: (context) {
+                          final user = StorageService.currentUser;
+                          final isAdminIiap = user?.role == UserRole.ADMIN || user?.role == UserRole.SUPERADMIN;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.apartment_rounded, size: 12, color: Color(0xFF16A34A)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isAdminIiap ? 'Admin IIAP: Acceso Total' : 'Selector IIAP',
+                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: _uoSugeridas.map((uo) {
-                      final isMatch = _uoController.text.trim().toLowerCase() == uo.toLowerCase();
-                      return ActionChip(
-                        avatar: isMatch
-                            ? const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A))
-                            : null,
-                        label: Text(
-                          uo,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: isMatch ? FontWeight.bold : FontWeight.normal,
-                            color: isMatch
-                                ? (isDark ? Colors.white : const Color(0xFF16A34A))
-                                : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                  InkWell(
+                    onTap: _openUoSelector,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.apartment_rounded, color: Color(0xFF16A34A), size: 20),
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        onPressed: () => setState(() => _uoController.text = uo),
-                        backgroundColor: isMatch
-                            ? const Color(0xFF16A34A).withValues(alpha: isDark ? 0.25 : 0.12)
-                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                        side: BorderSide(
-                          color: isMatch
-                              ? const Color(0xFF16A34A)
-                              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      );
-                    }).toList(),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _uoController.text.trim().isNotEmpty
+                                      ? _uoController.text.trim()
+                                      : 'Seleccionar Unidad Organizativa...',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: _uoController.text.trim().isNotEmpty
+                                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF94A3B8)),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Toca para desplegar las 14 sedes y direcciones',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            size: 24,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                  if (_isCustomUo) ...[
+                    const SizedBox(height: 10),
+                    AppTextField(
+                      controller: _uoController,
+                      label: 'Nombre de la Unidad Organizativa personalizada',
+                      hint: 'Ej. Laboratorio de Biología Molecular',
+                      prefixIcon: Icons.edit_location_alt_rounded,
+                    ),
+                  ],
 
                   const SizedBox(height: 18),
 
