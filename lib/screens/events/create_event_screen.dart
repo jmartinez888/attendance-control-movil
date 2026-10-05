@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../utils/responsive.dart';
+import 'event_detail_screen.dart';
+import 'event_qr_display_screen.dart';
 
 class CreateEventScreen extends StatefulWidget {
   final EventModel? eventToEdit;
@@ -63,14 +67,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     'Sede Regional San Martín (Tarapoto)',
     'Sede Regional Ucayali (Pucallpa)',
     'Sede Regional Madre de Dios',
-  ];
-
-  static const List<String> _ubicacionesSugeridas = [
-    'IIAP - Sede Central',
-    'Auditorio Principal',
-    'Sala de Capacitaciones',
-    'Virtual (Google Meet)',
-    'Virtual (Zoom)',
   ];
 
   @override
@@ -318,14 +314,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         );
         await EventService.updateEvent(updated);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Evento actualizado exitosamente!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
-        );
+        Navigator.of(context).pop(true);
       } else {
-        await EventService.createEvent(
+        final created = await EventService.createEvent(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
           location: _locationController.text.trim(),
@@ -337,14 +328,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           shifts: activeShifts,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Evento creado y programado exitosamente!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
-        );
+        await _showSuccessModal(created);
       }
-      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -356,6 +341,242 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  /// Modal de Éxito Limpio y Minimalista según solicitud oficial
+  Future<void> _showSuccessModal(EventModel event) async {
+    const mintGreen = Color(0xFF34D399);
+    const darkGreen = Color(0xFF064E3B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final shortId = event.id.replaceAll('evt_', '');
+    final displayId = shortId.length > 8 ? shortId.substring(0, 8) : shortId;
+    final webUrl = 'https://dev-api-control.iiap.gob.pe/events/register/${event.id}';
+    final shortDisplayUrl = 'iiap.gob.pe/ev/$displayId';
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Checkmark animado en verde esmeralda
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: mintGreen.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: mintGreen, width: 2),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.check_rounded, color: mintGreen, size: 40),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 2. Título
+                  const Text(
+                    '¡Evento Publicado Con Éxito!',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+
+                  // 3. Subtítulo (Título del evento)
+                  Text(
+                    event.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: mintGreen,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // 4. Tarjeta QR Prominente con enlace y botones rápidos
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: mintGreen.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Código QR generado
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: QrImageView(
+                            data: event.qrCode ?? 'IIAP-EVT-${event.id}',
+                            version: QrVersions.auto,
+                            size: 150,
+                            gapless: true,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Enlace corto
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.link_rounded, size: 14, color: mintGreen),
+                              const SizedBox(width: 6),
+                              Text(
+                                shortDisplayUrl,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Botones rápidos: [ Proyectar QR ] y [ Copiar Enlace ]
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: mintGreen,
+                                  foregroundColor: darkGreen,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (_) => EventQrDisplayScreen(event: event),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.qr_code_scanner_rounded, size: 16, color: darkGreen),
+                                label: const Text('Proyectar QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: webUrl));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('¡Enlace del evento copiado al portapapeles!'),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: Color(0xFF0D9488),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_rounded, size: 15),
+                                label: const Text('Copiar Enlace', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // 5. Dos Botones Finales
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: mintGreen,
+                        foregroundColor: darkGreen,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => EventDetailScreen(event: event),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Ir al Panel del Evento',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: darkGreen),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                        side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        // Reiniciar formulario para crear otro evento
+                        setState(() {
+                          _currentStep = 0;
+                          _titleController.clear();
+                          _descriptionController.clear();
+                          _selectedType = EventType.CAPACITACION;
+                          _hasManana = true;
+                          _hasTarde = false;
+                          _hasNoche = false;
+                        });
+                      },
+                      child: const Text('Crear Otro Evento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   IconData _getTypeIcon(EventType type) {
@@ -705,79 +926,148 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     );
   }
 
-  Widget _buildStepTab({
-    required int index,
-    required String label,
-    required String number,
-  }) {
-    final isSelected = _currentStep == index;
+  String _formatTime12h(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '${hour.toString().padLeft(2, '0')}:$minute $period';
+  }
+
+  int _activeShiftsCount() {
+    int c = 0;
+    if (_hasManana) c++;
+    if (_hasTarde) c++;
+    if (_hasNoche) c++;
+    return c;
+  }
+
+  String _activeShiftsSummary() {
+    final list = <String>[];
+    if (_hasManana) list.add('Mañana');
+    if (_hasTarde) list.add('Tarde');
+    if (_hasNoche) list.add('Noche');
+    if (list.isEmpty) return 'Sin turnos';
+    return list.join(' & ');
+  }
+
+  Widget _buildStepperHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const mintGreen = Color(0xFF34D399);
     const darkGreen = Color(0xFF064E3B);
-    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
     final inactiveBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final inactiveLine = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final inactiveText = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          if (index > _currentStep && _titleController.text.trim().isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Por favor, ingresa el título del evento para continuar.'),
-                backgroundColor: Color(0xFFDC2626),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-            return;
-          }
-          setState(() => _currentStep = index);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: isSelected ? mintGreen : inactiveBg,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      number,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? darkGreen : inactiveColor,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: isSelected ? (isDark ? Colors.white : const Color(0xFF0F172A)) : inactiveColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              height: 3,
-              decoration: BoxDecoration(
-                color: isSelected ? mintGreen : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
+    Widget buildCircle(int stepIndex, String number) {
+      final isDone = _currentStep > stepIndex;
+      final isActive = _currentStep == stepIndex;
+      return Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: (isDone || isActive) ? mintGreen : inactiveBg,
+          shape: BoxShape.circle,
         ),
+        child: Center(
+          child: isDone
+              ? const Icon(Icons.check, size: 16, color: darkGreen)
+              : Text(
+                  number,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isActive ? darkGreen : inactiveText,
+                  ),
+                ),
+        ),
+      );
+    }
+
+    Widget buildLabel(int stepIndex, String label) {
+      final isDone = _currentStep > stepIndex;
+      final isActive = _currentStep == stepIndex;
+      return Text(
+        label,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.bold,
+          color: (isDone || isActive)
+              ? (isDark ? Colors.white : const Color(0xFF0F172A))
+              : inactiveText,
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              InkWell(
+                onTap: () => setState(() => _currentStep = 0),
+                borderRadius: BorderRadius.circular(20),
+                child: buildCircle(0, '1'),
+              ),
+              Expanded(
+                child: Container(
+                  height: 2.5,
+                  color: _currentStep >= 1 ? mintGreen : inactiveLine,
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  if (_titleController.text.trim().isNotEmpty) {
+                    setState(() => _currentStep = 1);
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: buildCircle(1, '2'),
+              ),
+              Expanded(
+                child: Container(
+                  height: 2.5,
+                  color: _currentStep >= 2 ? mintGreen : inactiveLine,
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  if (_titleController.text.trim().isNotEmpty && (_hasManana || _hasTarde || _hasNoche)) {
+                    setState(() => _currentStep = 2);
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: buildCircle(2, '3'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InkWell(
+                onTap: () => setState(() => _currentStep = 0),
+                child: buildLabel(0, '1. INFO'),
+              ),
+              InkWell(
+                onTap: () {
+                  if (_titleController.text.trim().isNotEmpty) {
+                    setState(() => _currentStep = 1);
+                  }
+                },
+                child: buildLabel(1, '2. TURNOS'),
+              ),
+              InkWell(
+                onTap: () {
+                  if (_titleController.text.trim().isNotEmpty && (_hasManana || _hasTarde || _hasNoche)) {
+                    setState(() => _currentStep = 2);
+                  }
+                },
+                child: buildLabel(2, '3. CIERRE'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -838,10 +1128,154 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     );
   }
 
+  Widget _buildShiftCardNew({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconBgColor,
+    required bool isEnabled,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+    required ValueChanged<bool> onToggle,
+    required VoidCallback onPickStart,
+    required VoidCallback onPickEnd,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const mintGreen = Color(0xFF34D399);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111827) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEnabled
+              ? mintGreen.withValues(alpha: 0.5)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          width: isEnabled ? 1.3 : 1.0,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconBgColor.withValues(alpha: isEnabled ? 0.25 : 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: isEnabled ? iconBgColor : Colors.grey),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: isEnabled,
+                activeTrackColor: mintGreen,
+                onChanged: onToggle,
+              ),
+            ],
+          ),
+          if (isEnabled) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: onPickStart,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF94A3B8)),
+                              SizedBox(width: 4),
+                              Text('Hora Inicio', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _formatTime12h(startTime),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: onPickEnd,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.schedule_send_rounded, size: 12, color: Color(0xFF94A3B8)),
+                              SizedBox(width: 4),
+                              Text('Hora Fin', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _formatTime12h(endTime),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isEdit = widget.eventToEdit != null;
 
     final bgColor = isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC);
@@ -857,7 +1291,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (_currentStep > 0) {
+              setState(() => _currentStep--);
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Text(
           isEdit ? 'Editar Evento' : 'Crear Nuevo Evento',
@@ -880,7 +1320,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
           child: Responsive.constrained(
             context,
             maxTabletWidth: 700,
@@ -889,94 +1329,82 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. BANNER HEADER
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: cardBorder),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF064E3B).withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(12),
+                  // 1. STEPPER CONECTOR SUPERIOR (1. INFO ── 2. TURNOS ── 3. CIERRE)
+                  _buildStepperHeader(),
+                  const SizedBox(height: 10),
+
+                  // 2. CONTENIDO SEGÚN EL PASO ACTIVO
+                  if (_currentStep == 0) ...[
+                    // ==========================================
+                    // --- PASO 1: INFO ---
+                    // ==========================================
+                    // Header Card
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.calendar_today_rounded, color: mintGreen, size: 22),
                           ),
-                          child: const Icon(Icons.calendar_today_rounded, color: mintGreen, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Programación de Evento IIAP',
-                                    style: TextStyle(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF064E3B).withValues(alpha: 0.6),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
-                                    ),
-                                    child: const Text(
-                                      'Oficial',
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Programación de Evento IIAP',
                                       style: TextStyle(
-                                        color: mintGreen,
-                                        fontSize: 9.5,
+                                        fontSize: 14.5,
                                         fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Código QR institucional con validación biométrica...',
-                                style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF064E3B).withValues(alpha: 0.6),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                                      ),
+                                      child: const Text(
+                                        'Oficial',
+                                        style: TextStyle(
+                                          color: mintGreen,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Código QR institucional con validación biométrica...',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 18),
 
-                  // 2. STEPPER DE 3 PASOS (INFO - TURNOS - CIERRE)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: cardBorder),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildStepTab(index: 0, label: 'INFO', number: '1'),
-                        _buildStepTab(index: 1, label: 'TURNOS', number: '2'),
-                        _buildStepTab(index: 2, label: 'CIERRE', number: '3'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // 3. CONTENIDO SEGÚN EL PASO ACTIVO
-                  if (_currentStep == 0) ...[
-                    // --- PASO 1: INFO ---
                     // TÍTULO DEL EVENTO
                     Row(
                       children: [
@@ -1048,7 +1476,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Tarjeta principal del Tipo
                     InkWell(
                       onTap: _openEventTypeSelector,
                       borderRadius: BorderRadius.circular(16),
@@ -1096,7 +1523,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Grid 2x2 de accesos rápidos
                     Row(
                       children: [
                         _buildTypeQuickButton(
@@ -1277,11 +1703,61 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ),
                     ),
                   ] else if (_currentStep == 1) ...[
-                    // --- PASO 2: TURNOS & SEDES ---
+                    // ==========================================
+                    // --- PASO 2: TURNOS --- (Idéntico a Imagen 1)
+                    // ==========================================
+                    // Header Card
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.domain_rounded, color: mintGreen, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Configuración Espacial y Temporal',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Define la sede física, enlaces virtuales y los horarios...',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // UBICACIÓN / PLATAFORMA * (OBLIGATORIO)
                     Row(
                       children: [
+                        const Icon(Icons.location_on_outlined, size: 17, color: mintGreen),
+                        const SizedBox(width: 6),
                         Text(
-                          'Vigencia del Evento',
+                          'Ubicación / Plataforma',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -1290,11 +1766,89 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         ),
                         const SizedBox(width: 4),
                         const Text('*', style: TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 16)),
+                        const Spacer(),
+                        const Text(
+                          'OBLIGATORIO',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: TextFormField(
+                        controller: _locationController,
+                        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.location_on_rounded, color: mintGreen, size: 20),
+                          suffixIcon: Icon(Icons.map_outlined, color: Color(0xFF64748B), size: 20),
+                          hintText: 'IIAP - Sede Central, Auditorio Principal...',
+                          hintStyle: TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Sugerencias rápidas con chips
+                    const Text('Sugerencias rápidas:', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildQuickLocChip('IIAP - Sede Central', Icons.business_rounded),
+                        _buildQuickLocChip('Auditorio Principal', Icons.meeting_room_rounded),
+                        _buildQuickLocChip('Sala de Capacitaciones', Icons.groups_rounded),
+                        _buildQuickLocChip('Virtual (Meet)', Icons.videocam_rounded),
+                        _buildQuickLocChip('Virtual (Zoom)', Icons.headset_mic_rounded),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // VIGENCIA DEL EVENTO
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined, size: 16, color: mintGreen),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Vigencia del Evento',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF064E3B).withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(width: 5, height: 5, decoration: const BoxDecoration(color: mintGreen, shape: BoxShape.circle)),
+                              const SizedBox(width: 5),
+                              Text(
+                                _startDate.day == _endDate.day && _startDate.month == _endDate.month && _startDate.year == _endDate.year
+                                    ? 'Jornada Única'
+                                    : 'Varios Días',
+                                style: const TextStyle(color: mintGreen, fontSize: 10.5, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(16),
@@ -1309,13 +1863,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                  color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Inicio', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                    const Text('Fecha Inicio', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
@@ -1340,13 +1894,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                  color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Fin', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                    const Text('Fecha Fin', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
@@ -1366,85 +1920,36 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
 
-                    // UBICACIÓN / SEDE
+                    // TURNOS Y HORARIOS INDEPENDIENTES
                     Row(
                       children: [
+                        const Icon(Icons.access_time_rounded, size: 18, color: mintGreen),
+                        const SizedBox(width: 6),
                         Text(
-                          'Ubicación / Sede',
+                          'Turnos y Horarios Independientes',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        const Text('*', style: TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: cardBorder),
-                      ),
-                      child: TextFormField(
-                        controller: _locationController,
-                        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.location_on_outlined, color: mintGreen, size: 20),
-                          hintText: 'Ej. Auditorio Jaime Moro - IIAP',
-                          hintStyle: TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        ),
-                      ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Puedes activar 1 solo turno, 2 turnos o los 3 turnos en el mismo evento:',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _ubicacionesSugeridas.map((loc) {
-                        return InkWell(
-                          onTap: () => setState(() => _locationController.text = loc),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(loc, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
 
-                    // GESTIÓN DE TURNOS INDEPENDIENTES
-                    Row(
-                      children: [
-                        Text(
-                          'Gestión de Turnos Independientes',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text('*', style: TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 16)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildShiftCard(
-                      context: context,
-                      title: '☀️ Turno Mañana',
-                      subtitle: 'Horario oficial de acreditación matutina',
+                    // Turno Mañana
+                    _buildShiftCardNew(
+                      title: 'Turno Mañana',
+                      subtitle: 'Jornada matutina protocolar',
                       icon: Icons.wb_sunny_rounded,
-                      iconColor: const Color(0xFFF59E0B),
+                      iconBgColor: const Color(0xFF10B981),
                       isEnabled: _hasManana,
                       startTime: _mananaStart,
                       endTime: _mananaEnd,
@@ -1460,12 +1965,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         onSelected: (t) => _mananaEnd = t,
                       ),
                     ),
-                    _buildShiftCard(
-                      context: context,
-                      title: '⛅ Turno Tarde',
-                      subtitle: 'Horario oficial de acreditación vespertina',
+
+                    // Turno Tarde
+                    _buildShiftCardNew(
+                      title: 'Turno Tarde',
+                      subtitle: 'Jornada vespertina técnica',
                       icon: Icons.wb_twilight_rounded,
-                      iconColor: const Color(0xFFF97316),
+                      iconBgColor: const Color(0xFFF59E0B),
                       isEnabled: _hasTarde,
                       startTime: _tardeStart,
                       endTime: _tardeEnd,
@@ -1481,12 +1987,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         onSelected: (t) => _tardeEnd = t,
                       ),
                     ),
-                    _buildShiftCard(
-                      context: context,
-                      title: '🌙 Turno Noche',
-                      subtitle: 'Horario para jornadas nocturnas y talleres',
+
+                    // Turno Noche
+                    _buildShiftCardNew(
+                      title: 'Turno Noche',
+                      subtitle: 'Jornada nocturna / Clausura',
                       icon: Icons.nights_stay_rounded,
-                      iconColor: const Color(0xFF6366F1),
+                      iconBgColor: const Color(0xFF6366F1),
                       isEnabled: _hasNoche,
                       startTime: _nocheStart,
                       endTime: _nocheEnd,
@@ -1502,38 +2009,74 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         onSelected: (t) => _nocheEnd = t,
                       ),
                     ),
-                    const SizedBox(height: 20),
 
-                    // BOTONES DE NAVEGACIÓN
+                    // Resumen de Turnos Activos
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.fact_check_outlined, color: mintGreen, size: 18),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Turnos activos seleccionados:',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF064E3B).withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_activeShiftsCount()} Turnos',
+                              style: const TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 11.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // BOTONES INFERIORES DEL PASO 2
                     Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                              side: BorderSide(color: cardBorder),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                            onPressed: () => setState(() => _currentStep = 0),
-                            child: const Text('← Volver a Info', style: TextStyle(fontWeight: FontWeight.bold)),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                            side: BorderSide(color: cardBorder),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          onPressed: () => setState(() => _currentStep = 0),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.arrow_back_rounded, size: 16),
+                              SizedBox(width: 6),
+                              Text('Atrás', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: mintGreen,
                               foregroundColor: darkGreen,
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 15),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                             onPressed: () {
                               if (!_hasManana && !_hasTarde && !_hasNoche) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Activa al menos 1 turno (Mañana, Tarde o Noche).'),
+                                    content: Text('Debes activar al menos un turno para el evento.'),
                                     backgroundColor: Color(0xFFDC2626),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -1545,9 +2088,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                             child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text('Continuar a Cierre', style: TextStyle(fontWeight: FontWeight.bold, color: darkGreen)),
+                                Text(
+                                  'Continuar a Cierre y Publicación',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: darkGreen),
+                                ),
                                 SizedBox(width: 6),
-                                Icon(Icons.arrow_forward_rounded, color: darkGreen, size: 17),
+                                Icon(Icons.arrow_forward_rounded, color: darkGreen, size: 16),
                               ],
                             ),
                           ),
@@ -1555,33 +2101,135 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ],
                     ),
                   ] else ...[
-                    // --- PASO 3: CIERRE & TEMARIO ---
+                    // ==========================================
+                    // --- PASO 3: CIERRE --- (Idéntico a Imagen 2)
+                    // ==========================================
+                    // Card Resumen Ejecutivo Superior
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(width: 6, height: 6, decoration: const BoxDecoration(color: mintGreen, shape: BoxShape.circle)),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'RESUMEN EJECUTIVO',
+                                style: TextStyle(color: mintGreen, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              ),
+                              const Spacer(),
+                              const Row(
+                                children: [
+                                  Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFF94A3B8)),
+                                  SizedBox(width: 4),
+                                  Text('Listo para sellar', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.event_note_rounded, color: mintGreen, size: 20),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _titleController.text.isNotEmpty ? _titleController.text : 'Taller Institucional',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '📍 ${_locationController.text}  •  ${_formatDate(_startDate)} (${_activeShiftsSummary()})',
+                                      style: const TextStyle(fontSize: 11.5, color: mintGreen),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // DESCRIPCIÓN Y AGENDA OFICIAL
                     Row(
                       children: [
+                        const Icon(Icons.format_list_bulleted_rounded, size: 17, color: mintGreen),
+                        const SizedBox(width: 6),
                         Text(
-                          'Descripción y Temario del Evento',
+                          'Descripción y Agenda Oficial',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                         ),
+                        const Spacer(),
+                        const Text('Opcional', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // Chips rápidos de plantilla
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildTemplateChip(
+                          label: 'Plantilla Temario',
+                          icon: Icons.view_headline_rounded,
+                          template: '• Presentación y bienvenida institucional\n• Objetivos de la jornada de capacitación\n• Mesa redonda y preguntas',
+                        ),
+                        _buildTemplateChip(
+                          label: 'Horarios clave',
+                          icon: Icons.schedule_rounded,
+                          template: '• ${_activeShiftsSummary()}: Acreditación e ingreso con QR\n• Sesión práctica y entrega de constancias',
+                        ),
+                        _buildTemplateChip(
+                          label: 'Requisitos',
+                          icon: Icons.checklist_rounded,
+                          template: '• Portar DNI para validación en puerta\n• Asistencia puntual en los turnos seleccionados',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     Container(
                       decoration: BoxDecoration(
-                        color: cardBg,
+                        color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: cardBorder),
                       ),
                       child: TextFormField(
                         controller: _descriptionController,
-                        maxLines: 5,
-                        style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                        maxLines: 4,
+                        style: TextStyle(fontSize: 13, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                         decoration: const InputDecoration(
-                          hintText: '• Detalla la agenda, objetivos y temas del evento...\n• Cada línea se mostrará como viñeta en el detalle.',
-                          hintStyle: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                          hintText: 'Detalla los objetivos, ponentes, requisitos o temas a tratar en la sesión institucional...',
+                          hintStyle: TextStyle(color: Color(0xFF64748B), fontSize: 12.5),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.all(14),
                         ),
@@ -1589,134 +2237,237 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                     const SizedBox(height: 18),
 
-                    // CONTROL DE ASISTENCIA SWITCH
+                    // CONTROL QR INSTITUCIONAL DINÁMICO
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: cardBg,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: cardBorder),
                       ),
-                      child: Row(
+                      child: Column(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: mintGreen.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.qr_code_scanner_rounded, color: mintGreen, size: 22),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: mintGreen.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.qr_code_scanner_rounded, color: mintGreen, size: 22),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Control QR Institucional Dinámico',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13.5,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Permite a los asistentes escanear el QR proyectado y quedar registrados al instante con validación biométrica o DNI.',
+                                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), height: 1.3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _requiresAttendance,
+                                activeTrackColor: mintGreen,
+                                onChanged: (val) => setState(() => _requiresAttendance = val),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  'Control de Asistencia Activo',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13.5,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                const Icon(Icons.devices_rounded, size: 18, color: mintGreen),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Registro externo vía Web móvil',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                      Text(
+                                        'Sin descarga de App requerida (Público general)',
+                                        style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const Text(
-                                  'Genera código QR para personal y formulario web para externos',
-                                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: mintGreen,
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: const Icon(Icons.check, size: 14, color: darkGreen),
                                 ),
                               ],
                             ),
-                          ),
-                          Switch.adaptive(
-                            value: _requiresAttendance,
-                            activeTrackColor: mintGreen,
-                            onChanged: (val) => setState(() => _requiresAttendance = val),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 18),
 
-                    // RESUMEN EJECUTIVO
+                    // AJUSTES OPERATIVOS Y PROTOCOLO
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(16),
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: cardBorder),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.check_circle_outline_rounded, color: mintGreen, size: 18),
+                          Row(
+                            children: const [
+                              Icon(Icons.tune_rounded, size: 18, color: mintGreen),
                               SizedBox(width: 8),
-                              Text('Resumen de Configuración', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                              Text('Ajustes Operativos y Protocolo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Evento: ${_titleController.text.isNotEmpty ? _titleController.text : "(Sin título)"}',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: const [
+                              Text('Capacidad de Sala / Aforo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                              Spacer(),
+                              Text('Ilimitado', style: TextStyle(fontSize: 11, color: mintGreen, fontWeight: FontWeight.bold)),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Text('Categoría: ${_selectedType.displayName} • UO: ${_uoController.text}', style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-                          const SizedBox(height: 4),
-                          Text('Vigencia: ${_formatDate(_startDate)} al ${_formatDate(_endDate)}', style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Turnos: ${[if (_hasManana) "Mañana", if (_hasTarde) "Tarde", if (_hasNoche) "Noche"].join(", ")}',
-                            style: const TextStyle(fontSize: 12, color: mintGreen, fontWeight: FontWeight.bold),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: mintGreen.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.all_inclusive_rounded, size: 15, color: mintGreen),
+                                      SizedBox(width: 6),
+                                      Text('Sin Límite', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: cardBorder),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.group_outlined, size: 15, color: Color(0xFF94A3B8)),
+                                      SizedBox(width: 6),
+                                      Text('Establecer Cupo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.workspace_premium_outlined, color: Color(0xFFF59E0B), size: 20),
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Certificado de Asistencia Digital', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                                    Text('Generar constancia PDF al marcar salida', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: false,
+                                onChanged: (_) {},
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // BOTONES FINALES
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                              side: BorderSide(color: cardBorder),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                            onPressed: () => setState(() => _currentStep = 1),
-                            child: const Text('← Volver a Turnos', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
+                    // BOTÓN PRINCIPAL: PUBLICAR EVENTO OFICIAL
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: mintGreen,
+                          foregroundColor: darkGreen,
+                          elevation: 3,
+                          shadowColor: mintGreen.withValues(alpha: 0.4),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: mintGreen,
-                              foregroundColor: darkGreen,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                            onPressed: _isSubmitting ? null : _handleSave,
-                            child: _isSubmitting
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: darkGreen))
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(Icons.check_rounded, color: darkGreen, size: 20),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        isEdit ? 'Guardar Cambios' : 'Publicar Evento',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: darkGreen),
-                                      ),
-                                    ],
+                        onPressed: _isSubmitting ? null : _handleSave,
+                        child: _isSubmitting
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: darkGreen))
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.rocket_launch_rounded, color: darkGreen, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Publicar Evento Oficial',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: darkGreen),
                                   ),
-                          ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _currentStep = 1),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16, color: Color(0xFF94A3B8)),
+                        label: const Text(
+                          'Volver a Turnos',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
                         ),
-                      ],
+                      ),
                     ),
                   ],
 
@@ -1730,163 +2481,69 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     );
   }
 
-  Widget _buildShiftCard({
-    required BuildContext context,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color iconColor,
-    required bool isEnabled,
-    required TimeOfDay startTime,
-    required TimeOfDay endTime,
-    required ValueChanged<bool> onToggle,
-    required VoidCallback onPickStart,
-    required VoidCallback onPickEnd,
-  }) {
+  Widget _buildQuickLocChip(String label, IconData icon) {
+    final isSelected = _locationController.text.trim().toLowerCase() == label.toLowerCase();
+    const mintGreen = Color(0xFF34D399);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ThemeService.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isEnabled
-              ? iconColor.withValues(alpha: 0.5)
-              : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-          width: isEnabled ? 1.5 : 1.0,
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: isEnabled ? 0.15 : 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 20, color: isEnabled ? iconColor : Colors.grey),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Switch.adaptive(
-                value: isEnabled,
-                activeTrackColor: iconColor,
-                onChanged: onToggle,
-              ),
-            ],
+    return InkWell(
+      onTap: () => setState(() => _locationController.text = label),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF064E3B).withValues(alpha: 0.5)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? mintGreen : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
           ),
-          if (isEnabled) ...[
-            const SizedBox(height: 10),
-            Divider(height: 1, color: isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: onPickStart,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Hora Inicio',
-                            style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(Icons.access_time_rounded, size: 14, color: iconColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatTimeOfDay(startTime),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: InkWell(
-                    onTap: onPickEnd,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Hora Fin',
-                            style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(Icons.access_time_filled_rounded, size: 14, color: iconColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatTimeOfDay(endTime),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? mintGreen : const Color(0xFF94A3B8)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? mintGreen : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+              ),
             ),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateChip({required String label, required IconData icon, required String template}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: () {
+        final current = _descriptionController.text.trim();
+        setState(() {
+          _descriptionController.text = current.isEmpty ? template : '$current\n\n$template';
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: const Color(0xFF34D399)),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
       ),
     );
   }
