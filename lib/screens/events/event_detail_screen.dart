@@ -47,11 +47,21 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   void _startLiveRefresh() {
     _liveRefreshTimer?.cancel();
-    // Sondeo periódico para reflejar en tiempo real participantes que llenan el formulario web o escanean el QR
-    _liveRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+    // Sondeo periódico para reflejar en tiempo real participantes que escanean el QR o se registran vía web/manual
+    _liveRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (!mounted) return;
       try {
-        await EventService.getEvents();
+        final fresh = await EventService.getEventById(_currentEvent.id);
+        if (fresh != null && mounted) {
+          if (fresh.attendees.length != _currentEvent.attendees.length || fresh != _currentEvent) {
+            final hadFewer = fresh.attendees.length > _currentEvent.attendees.length;
+            setState(() => _currentEvent = fresh);
+            _loadManagers();
+            if (hadFewer) {
+              HapticFeedback.lightImpact();
+            }
+          }
+        }
       } catch (_) {}
     });
   }
@@ -440,15 +450,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _handleManualRegisterAttendee() async {
     final updated = await ManualAttendeeModal.show(context, event: _currentEvent);
-    if (updated != null && mounted) {
-      setState(() => _currentEvent = updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Participante registrado exitosamente en el evento!'),
-          backgroundColor: Color(0xFF16A34A),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (mounted) {
+      if (updated != null) {
+        setState(() => _currentEvent = updated);
+      }
+      await _fetchEventDetails();
     }
   }
 
@@ -1141,6 +1147,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _fetchEventDetails() async {
     try {
+      final fresh = await EventService.getEventById(_currentEvent.id);
+      if (fresh != null && mounted) {
+        setState(() => _currentEvent = fresh);
+        await _loadManagers();
+        return;
+      }
       final events = await EventService.getEvents(forceRefresh: true);
       final found = events.firstWhere((e) => e.id == _currentEvent.id, orElse: () => _currentEvent);
       if (mounted) {
@@ -1377,7 +1389,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           onPressed: _handleOpenQrDisplay,
                           icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: darkGreen),
                           label: const Text(
-                            'Proyectar QR',
+                            'QR',
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.bold,
@@ -1656,7 +1668,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         badgeColor: const Color(0xFF10B981),
                         icon: Icons.domain_rounded,
                         description: 'Proyecta el código para que los colaboradores con la app móvil confirmen su asistencia al instante.',
-                        buttonText: 'Proyectar QR Registrados',
+                        buttonText: 'QR Registrados',
                         buttonColor: const Color(0xFF10B981),
                         onTap: () {
                           Navigator.of(context).push(
@@ -1677,7 +1689,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         badgeColor: const Color(0xFF0284C7),
                         icon: Icons.public_rounded,
                         description: 'Abre el formulario web de registro público sin necesidad de tener instalada la app en el teléfono.',
-                        buttonText: 'Proyectar QR Externos',
+                        buttonText: 'QR Externos',
                         buttonColor: const Color(0xFF0284C7),
                         onTap: () {
                           Navigator.of(context).push(

@@ -131,7 +131,8 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
         // Si se detecta un nuevo registro de participante:
         if (latestCount > _attendeesCount) {
           _attendeesCount = latestCount;
-          // Actualizar lista global de eventos para reflejar el nuevo asistente
+          // Actualizar evento en memoria para reflejar el nuevo asistente al instante
+          EventService.getEventById(widget.event.id);
           EventService.getEvents();
           HapticFeedback.heavyImpact();
           _rotateQr(

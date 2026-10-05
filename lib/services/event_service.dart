@@ -60,6 +60,21 @@ class EventService {
     return eventsNotifier.value;
   }
 
+  /// Obtiene los detalles actualizados de un evento individual (incluye lista completa de asistentes)
+  static Future<EventModel?> getEventById(String eventId) async {
+    try {
+      final response = await ApiClient.get(ApiConfig.eventById(eventId));
+      if (response != null && response is Map<String, dynamic>) {
+        final serverEvent = EventModel.fromJson(response);
+        _updateLocalList(serverEvent);
+        return serverEvent;
+      }
+    } catch (e) {
+      debugPrint('EventService.getEventById: Error al consultar backend ($eventId): $e');
+    }
+    return null;
+  }
+
   /// Crea un nuevo evento (Solo Admin o Supervisor)
   static Future<EventModel> createEvent({
     required String title,
@@ -372,7 +387,6 @@ class EventService {
         'document_number': currentUser.documentNumber ?? '',
         'phone_number': currentUser.phoneNumber ?? '',
         'is_external': false,
-        'qr_code': qrCode,
         if (shift != null && shift.isNotEmpty) 'shift': shift.trim(),
         'registered_at': DateTime.now().toUtc().toIso8601String(),
       };

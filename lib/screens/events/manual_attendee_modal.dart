@@ -75,10 +75,12 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
   bool _showMoreFields = false;
   bool _isSubmitting = false;
   String? _errorMessage;
+  late EventModel _lastUpdatedEvent;
 
   @override
   void initState() {
     super.initState();
+    _lastUpdatedEvent = widget.event;
     final shifts = widget.event.shifts.where((s) => s.enabled).toList();
     if (shifts.isNotEmpty) {
       final hour = DateTime.now().hour;
@@ -186,11 +188,12 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
         ),
       );
 
+      _lastUpdatedEvent = updatedEvent;
       if (registerAnother == true) {
         _clearForm();
       } else {
         if (mounted) {
-          Navigator.of(context).pop(updatedEvent);
+          Navigator.of(context).pop(_lastUpdatedEvent);
         }
       }
     } on ApiException catch (e) {
@@ -289,7 +292,7 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
                 IconButton(
                   icon: const Icon(Icons.close_rounded),
                   tooltip: 'Cerrar',
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pop(_lastUpdatedEvent),
                 ),
               ],
             ),
