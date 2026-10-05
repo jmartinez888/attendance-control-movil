@@ -44,11 +44,36 @@ class Responsive {
     return phoneSize;
   }
 
-  /// Tamaño del código QR en pantalla: en celular 240dp, en tablet/desktop 340dp-380dp
-  static double qrDisplaySize(BuildContext context) {
-    if (isDesktop(context) || isLargeTablet(context)) return 380.0;
-    if (isTablet(context)) return 340.0;
-    return 240.0;
+  /// Tamaño del código QR en pantalla optimizado para:
+  /// - Celulares compactos (iPhone SE, Android pequeños): 200 - 220dp
+  /// - Celulares estándar (Android, iPhone Pro/Max): 240 - 260dp
+  /// - Tablets / iPads (Portrait): 300 - 330dp
+  /// - Laptops / Monitores / Proyectores (Landscape / Desktop): 360 - 420dp
+  /// Garantiza matemáticamente que nunca exceda el ancho o alto disponible.
+  static double qrDisplaySize(BuildContext context, {bool isProjectorMode = false}) {
+    final size = MediaQuery.sizeOf(context);
+    final width = size.width;
+    final height = size.height;
+    final isLandscapeMode = width > height;
+
+    if (isProjectorMode) {
+      final safeSide = width < height ? width : height;
+      return (safeSide * 0.65).clamp(280.0, 520.0);
+    }
+
+    if (isDesktop(context) || isWideScreen(context)) {
+      return 380.0;
+    } else if (isLargeTablet(context)) {
+      return 350.0;
+    } else if (isTablet(context)) {
+      return 310.0;
+    } else if (width < 360 || (isLandscapeMode && height < 480)) {
+      return 210.0;
+    } else if (width < 400) {
+      return 235.0;
+    } else {
+      return 260.0;
+    }
   }
 
   /// Contenedor centrado ergonómico: en celular usa ancho completo, en tablet/escritorio limita el ancho máximo

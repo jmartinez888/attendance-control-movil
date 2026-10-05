@@ -24,15 +24,21 @@ void main() async {
     ),
   );
 
-  await ThemeService.init();
-  await WallpaperService.init();
-  await ApiConfig.init();
-  await StorageService.init();
-  await AttendanceService.init();
-  await ScheduleService.init();
-  await ConnectivityService.init();
-  await NotificationService.init();
+  // Inicialización paralela y ultra-rápida de servicios esenciales (0 ms de espera)
+  await Future.wait([
+    ThemeService.init(),
+    WallpaperService.init(),
+    ApiConfig.init(),
+    StorageService.init(),
+    AttendanceService.init(),
+    ConnectivityService.init(),
+  ]);
+
   runApp(const MyApp());
+
+  // Servicios secundarios en segundo plano sin bloquear el primer renderizado visual
+  ScheduleService.init();
+  NotificationService.init();
 }
 
 class MyApp extends StatelessWidget {

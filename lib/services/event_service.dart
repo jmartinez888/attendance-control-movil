@@ -70,6 +70,7 @@ class EventService {
     required EventType type,
     required bool requiresAttendance,
     String? organizationalUnit,
+    List<EventShift>? shifts,
   }) async {
     final currentUser = StorageService.currentUser;
     if (currentUser == null || !currentUser.canManageAttendanceQr) {
@@ -97,6 +98,7 @@ class EventService {
       attendeesCount: 0,
       attendees: [],
       organizationalUnit: organizationalUnit?.trim(),
+      shifts: shifts ?? [],
     );
 
     // Intentar guardar en backend
@@ -112,6 +114,8 @@ class EventService {
         'qr_code': qrToken,
         if (organizationalUnit != null && organizationalUnit.trim().isNotEmpty)
           'organizational_unit': organizationalUnit.trim(),
+        if (shifts != null && shifts.isNotEmpty)
+          'shifts': shifts.map((s) => s.toJson()).toList(),
       };
       final res = await ApiClient.post(
         ApiConfig.eventsAll,
@@ -151,6 +155,8 @@ class EventService {
         'status': event.status.name,
         if (event.organizationalUnit != null)
           'organizational_unit': event.organizationalUnit,
+        if (event.shifts.isNotEmpty)
+          'shifts': event.shifts.map((s) => s.toJson()).toList(),
       };
       final res = await ApiClient.patch(
         ApiConfig.eventById(event.id),
@@ -254,6 +260,7 @@ class EventService {
     String? institution,
     String? position,
     String? notes,
+    String? shift,
   }) async {
     final currentUser = StorageService.currentUser;
     if (currentUser == null || !currentUser.canManageAttendanceQr) {
@@ -271,6 +278,7 @@ class EventService {
       if (institution != null && institution.isNotEmpty) 'institution': institution.trim(),
       if (position != null && position.isNotEmpty) 'user_position': position.trim(),
       if (notes != null && notes.isNotEmpty) 'notes': notes.trim(),
+      if (shift != null && shift.isNotEmpty) 'shift': shift.trim(),
       'is_external': true,
       'registered_at': DateTime.now().toUtc().toIso8601String(),
     };
@@ -303,8 +311,9 @@ class EventService {
       final docTrimmed = documentNumber.trim();
       final emailTrimmed = email.trim().toLowerCase();
       final exists = targetEvent.attendees.any(
-        (a) => (docTrimmed.isNotEmpty && a.documentNumber == docTrimmed) ||
-               (emailTrimmed.isNotEmpty && a.userEmail.toLowerCase() == emailTrimmed),
+        (a) => (shift != null && shift.isNotEmpty ? a.shift == shift : true) &&
+               ((docTrimmed.isNotEmpty && a.documentNumber == docTrimmed) ||
+                (emailTrimmed.isNotEmpty && a.userEmail.toLowerCase() == emailTrimmed)),
       );
       if (exists) {
         throw ApiException('El participante ya se encuentra registrado con este DNI o correo.');
@@ -323,6 +332,7 @@ class EventService {
         institution: institution?.trim(),
         userPosition: position?.trim(),
         notes: notes?.trim() ?? 'Registro manual por Administrador',
+        shift: shift,
         isExternal: true,
         registeredAt: DateTime.now(),
       );
@@ -344,6 +354,7 @@ class EventService {
   static Future<EventModel> registerAttendance({
     required String eventId,
     String? qrCode,
+    String? shift,
   }) async {
     final currentUser = StorageService.currentUser;
     if (currentUser == null) {
@@ -362,6 +373,7 @@ class EventService {
         'phone_number': currentUser.phoneNumber ?? '',
         'is_external': false,
         'qr_code': qrCode,
+        if (shift != null && shift.isNotEmpty) 'shift': shift.trim(),
         'registered_at': DateTime.now().toUtc().toIso8601String(),
       };
       final res = await ApiClient.post(
@@ -423,6 +435,7 @@ class EventService {
       documentNumber: currentUser.documentNumber,
       phoneNumber: currentUser.phoneNumber,
       isExternal: false,
+      shift: shift,
       registeredAt: DateTime.now(),
       notes: 'Asistencia registrada con éxito',
     );

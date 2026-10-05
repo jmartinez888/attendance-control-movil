@@ -21,14 +21,11 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
   }
 
   Future<void> _checkAuth() async {
-    // Lectura local instantánea con transición suave de 0.2 seg
-    await Future.delayed(const Duration(milliseconds: 200));
-
     final user = StorageService.currentUser;
     final token = StorageService.tokenSync ?? await StorageService.getToken();
 
     // SESIÓN PERSISTENTE OFFLINE-FIRST:
-    // Si hay usuario o token guardado localmente, se manda de frente al Home con esos datos locales.
+    // Si hay usuario o token guardado localmente, se manda de frente al Home de forma instantánea.
     // La validación y refresh del token se harán en segundo plano una vez dentro del Home.
     if (user != null || (token != null && token.isNotEmpty)) {
       if (mounted) {
@@ -46,7 +43,7 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
   void _navigateTo(Widget targetScreen) {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 220),
+        transitionDuration: const Duration(milliseconds: 100),
         pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);

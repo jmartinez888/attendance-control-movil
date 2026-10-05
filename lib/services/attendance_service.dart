@@ -9,16 +9,23 @@ import '../models/qr_model.dart';
 import 'api_client.dart';
 
 class AttendanceService {
+  static QrGeneratedResponse? _lastActiveQr;
+  static QrGeneratedResponse? get lastActiveQr => _lastActiveQr;
+
   // 1. Generar nuevo QR de asistencia (Admin o Supervisor)
   static Future<QrGeneratedResponse> generateAttendanceQr() async {
     final response = await ApiClient.post(ApiConfig.attendanceGenerateQr);
-    return QrGeneratedResponse.fromJson(response as Map<String, dynamic>);
+    final qr = QrGeneratedResponse.fromJson(response as Map<String, dynamic>);
+    _lastActiveQr = qr;
+    return qr;
   }
 
   // 1.1 Obtener o refrescar el QR de asistencia activo
   static Future<QrGeneratedResponse> getActiveAttendanceQr() async {
     final response = await ApiClient.get(ApiConfig.attendanceActiveQr);
-    return QrGeneratedResponse.fromJson(response as Map<String, dynamic>);
+    final qr = QrGeneratedResponse.fromJson(response as Map<String, dynamic>);
+    _lastActiveQr = qr;
+    return qr;
   }
 
   // 2. Generar QR para designar Supervisor (Solo ADMIN)

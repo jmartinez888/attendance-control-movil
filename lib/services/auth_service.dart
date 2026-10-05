@@ -405,83 +405,32 @@ class AuthService {
     return 'Tu cuenta ha sido eliminada con éxito de la base de datos.';
   }
 
-  /// 4. Cambiar contraseña estando autenticado
+  /// 4. Cambiar contraseña estando autenticado (POST /api/auth/change-password)
   static Future<String> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
     final currentUser = StorageService.currentUser;
-    final userId = currentUser?.id ?? '';
-
     final body = {
       'current_password': currentPassword,
-      'currentPassword': currentPassword,
       'new_password': newPassword,
-      'newPassword': newPassword,
-      'password': newPassword,
     };
 
     dynamic response;
-
-    // 1. Intentar PATCH /api/users/me solo con {'password': newPassword} (DTO limpio para NestJS ValidationPipe)
     try {
-      response = await ApiClient.patch(
-        ApiConfig.usersMe,
-        body: {'password': newPassword},
+      response = await ApiClient.post(
+        ApiConfig.authChangePassword,
+        body: body,
       );
-    } catch (e1) {
-      // 2. Intentar PATCH /api/users/me con password y currentPassword
+    } catch (e) {
+      // Fallback a PATCH /api/users/me solo si falla
       try {
         response = await ApiClient.patch(
           ApiConfig.usersMe,
-          body: {'password': newPassword, 'currentPassword': currentPassword},
+          body: {'password': newPassword},
         );
-      } catch (e2) {
-        // 3. Intentar PATCH /api/users/:id con {'password': newPassword}
-        if (userId.isNotEmpty) {
-          try {
-            response = await ApiClient.patch(
-              ApiConfig.userById(userId),
-              body: {'password': newPassword},
-            );
-          } catch (e3) {
-            // 4. Intentar PATCH /api/users/me/password
-            try {
-              response = await ApiClient.patch(
-                '${ApiConfig.baseUrl}/users/me/password',
-                body: body,
-              );
-            } catch (e4) {
-              // 5. Intentar POST /api/auth/change-password
-              try {
-                response = await ApiClient.post(
-                  '${ApiConfig.baseUrl}/auth/change-password',
-                  body: body,
-                );
-              } catch (e5) {
-                // 6. Intentar POST /api/users/me/change-password
-                try {
-                  response = await ApiClient.post(
-                    '${ApiConfig.baseUrl}/users/me/change-password',
-                    body: body,
-                  );
-                } catch (e6) {
-                  if (currentUser != null) {
-                    await StorageService.updateCurrentUser(currentUser);
-                    return 'Contraseña actualizada exitosamente.';
-                  }
-                  rethrow;
-                }
-              }
-            }
-          }
-        } else {
-          if (currentUser != null) {
-            await StorageService.updateCurrentUser(currentUser);
-            return 'Contraseña actualizada exitosamente.';
-          }
-          rethrow;
-        }
+      } catch (_) {
+        rethrow;
       }
     }
 

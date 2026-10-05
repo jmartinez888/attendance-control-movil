@@ -39,6 +39,11 @@ class UsersService {
     await ApiClient.delete(ApiConfig.userById(id));
   }
 
+  // Desvincular celular del usuario para permitir registro en un nuevo equipo (Solo ADMIN)
+  static Future<void> unbindDevice(String id) async {
+    await ApiClient.delete(ApiConfig.userDevice(id));
+  }
+
   // Actualizar datos de cualquier colaborador (ADMIN o SUPERVISOR)
   static Future<UserModel> updateUser(String id, Map<String, dynamic> data) async {
     final response = await ApiClient.patch(

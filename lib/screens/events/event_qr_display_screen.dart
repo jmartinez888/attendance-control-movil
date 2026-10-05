@@ -36,6 +36,7 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
   late EventQrMode _selectedMode;
   late String _currentQrData;
   late int _attendeesCount;
+  String? _selectedShift;
 
   int _secondsRemaining = _rotationSeconds;
   bool _justRotated = false;
@@ -50,6 +51,21 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
     super.initState();
     _selectedMode = widget.initialMode;
     _attendeesCount = widget.event.attendeesCount;
+
+    final shifts = widget.event.shifts.where((s) => s.enabled).toList();
+    if (shifts.isNotEmpty) {
+      final hour = DateTime.now().hour;
+      if (hour < 13 && shifts.any((s) => s.name == 'manana')) {
+        _selectedShift = 'manana';
+      } else if (hour < 18 && shifts.any((s) => s.name == 'tarde')) {
+        _selectedShift = 'tarde';
+      } else if (shifts.any((s) => s.name == 'noche')) {
+        _selectedShift = 'noche';
+      } else {
+        _selectedShift = shifts.first.name;
+      }
+    }
+
     _currentQrData = _generateDynamicQr();
     _startTimers();
   }
@@ -67,14 +83,16 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final nonce = Random().nextInt(999999).toString().padLeft(6, '0');
 
+        final shiftParam = _selectedShift != null ? '&shift=$_selectedShift' : '';
+
     if (_selectedMode == EventQrMode.registered) {
       // Formato para usuarios de la App IIAP con cuenta activa
-      return 'IIAP-EVT-${widget.event.id}?t=$timestamp&nonce=$nonce';
+      return 'IIAP-EVT-${widget.event.id}?t=$timestamp&nonce=$nonce$shiftParam';
     } else {
       // URL web pública para abrir el formulario en el navegador del celular
       final baseUrl = ApiConfig.eventPublicRegistrationUrl(widget.event.id);
       final separator = baseUrl.contains('?') ? '&' : '?';
-      return '$baseUrl${separator}t=$timestamp&nonce=$nonce';
+      return '$baseUrl${separator}t=$timestamp&nonce=$nonce$shiftParam';
     }
   }
 
@@ -382,6 +400,79 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
                     ),
                   ),
 
+                  // Selector dinámico de Turnos si el evento tiene turnos activos
+                  if (widget.event.shifts.where((s) => s.enabled).length > 1) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: widget.event.shifts.where((s) => s.enabled).map((shift) {
+                          final isSelected = _selectedShift == shift.name;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                if (_selectedShift != shift.name) {
+                                  setState(() => _selectedShift = shift.name);
+                                  _rotateQr(reason: 'Turno cambiado a ${shift.label}');
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? ThemeService.primaryColor(context)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: ThemeService.primaryColor(context).withValues(alpha: 0.3),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          )
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      shift.name == 'manana'
+                                          ? Icons.wb_sunny_rounded
+                                          : shift.name == 'tarde'
+                                              ? Icons.wb_twilight_rounded
+                                              : Icons.nights_stay_rounded,
+                                      size: 15,
+                                      color: isSelected ? Colors.white : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      shift.label,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 14),
 
                   // 3. Banner animado al renovar código por escaneo
@@ -469,9 +560,12 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                _selectedMode == EventQrMode.registered
+                                (_selectedMode == EventQrMode.registered
                                     ? 'QR PARA USUARIO REGISTRADO (APP)'
-                                    : 'QR PARA USUARIO EXTERNO (WEB)',
+                                    : 'QR PARA USUARIO EXTERNO (WEB)') +
+                                (_selectedShift != null
+                                    ? ' • ${_selectedShift == "manana" ? "MAÑANA" : _selectedShift == "tarde" ? "TARDE" : "NOCHE"}'
+                                    : ''),
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.bold,

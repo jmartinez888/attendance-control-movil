@@ -893,7 +893,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                   onTap: () {
                     Navigator.pop(ctx);
-                    _capturePhotoAndScanFacial(context);
+                    _capturePhotoAndScanFacial();
                   },
                 ),
                 const Divider(height: 16),
@@ -911,7 +911,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                   onTap: () {
                     Navigator.pop(ctx);
-                    _showWebcamHUDDialog(context);
+                    _showWebcamHUDDialog();
                   },
                 ),
               ],
@@ -922,7 +922,7 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  Future<void> _showWebcamHUDDialog(BuildContext context) async {
+  Future<void> _showWebcamHUDDialog() async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -945,11 +945,14 @@ class _DashboardTabState extends State<DashboardTab> {
     try {
       final res = await AttendanceService.scanAttendanceWebcam();
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.of(context).pop();
 
       if (res['success'] == true && res['matched'] == true) {
+        final detectedName = res['user']?['name']?.toString() ??
+            res['user']?['full_name']?.toString() ??
+            'Colaborador Reconocido';
         _showFacialSuccessDialog(
-          userName: res['user']?['name'] ?? 'Christopher Rengifo',
+          userName: detectedName,
           similarity: (res['similarity_percent'] ?? 85.0).toDouble(),
           timestamp: DateTime.now().toString(),
         );
@@ -960,12 +963,13 @@ class _DashboardTabState extends State<DashboardTab> {
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.of(context).pop();
       _showFacialErrorDialog('Error al conectar con la cámara: $e');
     }
   }
 
-  Future<void> _capturePhotoAndScanFacial(BuildContext context) async {
+  Future<void> _capturePhotoAndScanFacial() async {
+    final nav = Navigator.of(context);
     final picker = ImagePicker();
     try {
       final photo = await picker.pickImage(
@@ -1002,22 +1006,28 @@ class _DashboardTabState extends State<DashboardTab> {
       final base64Image = base64Encode(bytes);
 
       final res = await AttendanceService.scanAttendanceImage(base64Image);
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      nav.pop();
 
       if (res['success'] == true && res['matched'] == true) {
+        final detectedName = res['user']?['name']?.toString() ??
+            res['user']?['full_name']?.toString() ??
+            'Colaborador Reconocido';
         _showFacialSuccessDialog(
-          userName: res['user']?['name'] ?? 'Christopher Rengifo',
+          userName: detectedName,
           similarity: (res['similarity_percent'] ?? 85.0).toDouble(),
           timestamp: DateTime.now().toString(),
         );
       } else {
         _showFacialErrorDialog(
-          res['message'] ?? 'Rostro no coincide con el dataset de Christopher.',
+          res['message'] ?? 'Rostro no coincide con ningún colaborador registrado.',
         );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
-      _showFacialErrorDialog('Error al capturar imagen: $e');
+      if (mounted) {
+        nav.pop();
+        _showFacialErrorDialog('Error al capturar imagen: $e');
+      }
     }
   }
 

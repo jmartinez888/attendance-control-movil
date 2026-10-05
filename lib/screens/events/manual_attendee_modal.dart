@@ -71,9 +71,28 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
 
   String _docType = 'DNI';
   String? _selectedGender;
+  String? _selectedShift;
   bool _showMoreFields = false;
   bool _isSubmitting = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    final shifts = widget.event.shifts.where((s) => s.enabled).toList();
+    if (shifts.isNotEmpty) {
+      final hour = DateTime.now().hour;
+      if (hour < 13 && shifts.any((s) => s.name == 'manana')) {
+        _selectedShift = 'manana';
+      } else if (hour < 18 && shifts.any((s) => s.name == 'tarde')) {
+        _selectedShift = 'tarde';
+      } else if (shifts.any((s) => s.name == 'noche')) {
+        _selectedShift = 'noche';
+      } else {
+        _selectedShift = shifts.first.name;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -127,6 +146,7 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
         institution: _institutionController.text.trim().isNotEmpty ? _institutionController.text.trim() : null,
         position: _positionController.text.trim().isNotEmpty ? _positionController.text.trim() : null,
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+        shift: _selectedShift,
       );
 
       if (!mounted) return;
@@ -317,6 +337,10 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // --- Selector de Turno (si el evento tiene turnos) ---
+                        if (widget.event.shifts.where((s) => s.enabled).length > 1)
+                          _buildShiftSelector(),
+
                         // --- 1. Nombre Completo ---
                         _buildNameField(),
                         const SizedBox(height: 14),
@@ -432,6 +456,67 @@ class _ManualAttendeeModalState extends State<ManualAttendeeModal> {
   }
 
   // --- Sub-widgets de Campos ---
+  Widget _buildShiftSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shifts = widget.event.shifts.where((s) => s.enabled).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Turno del Evento *', hint: 'Selecciona la jornada de asistencia'),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedShift,
+              dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              items: shifts.map((s) {
+                final icon = s.name == 'manana'
+                    ? Icons.wb_sunny_rounded
+                    : s.name == 'tarde'
+                        ? Icons.wb_twilight_rounded
+                        : Icons.nights_stay_rounded;
+                final color = s.name == 'manana'
+                    ? const Color(0xFFF59E0B)
+                    : s.name == 'tarde'
+                        ? const Color(0xFFF97316)
+                        : const Color(0xFF6366F1);
+                return DropdownMenuItem<String>(
+                  value: s.name,
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 16, color: color),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${s.label} (${s.startTime} - ${s.endTime})',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedShift = val);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
+
   Widget _buildNameField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

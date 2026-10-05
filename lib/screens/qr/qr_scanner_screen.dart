@@ -114,9 +114,22 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         }
 
         if (targetEventId != null) {
+          String? shiftParam;
+          if (cleanCode.contains('shift=')) {
+            if (uri != null && uri.queryParameters.containsKey('shift')) {
+              shiftParam = uri.queryParameters['shift'];
+            } else {
+              final shiftMatch = RegExp(r'shift=([a-zA-Z0-9_-]+)').firstMatch(cleanCode);
+              if (shiftMatch != null) {
+                shiftParam = shiftMatch.group(1);
+              }
+            }
+          }
+
           final updatedEvent = await EventService.registerAttendance(
             eventId: targetEventId,
             qrCode: cleanCode,
+            shift: shiftParam,
           );
           if (!mounted) return;
           await _showSuccessDialog(

@@ -21,8 +21,17 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  final Set<int> _activatedTabs = {0};
   Timer? _syncTimer;
   bool _isSyncing = false;
+
+  void _selectTab(int index) {
+    if (_currentIndex == index) return;
+    setState(() {
+      _currentIndex = index;
+      _activatedTabs.add(index);
+    });
+  }
 
   @override
   void initState() {
@@ -180,10 +189,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final canManageStaff = currentUser?.canManageAttendanceQr == true;
 
         final List<Widget> pages = [
-          DashboardTab(onNavigateToHistory: () => setState(() => _currentIndex = 1)),
-          const AttendanceTab(),
-          if (canManageStaff) const SupervisorsTab(),
-          const ProfileTab(),
+          DashboardTab(onNavigateToHistory: () => _selectTab(1)),
+          _activatedTabs.contains(1) ? const AttendanceTab() : const SizedBox.shrink(),
+          if (canManageStaff)
+            _activatedTabs.contains(2) ? const SupervisorsTab() : const SizedBox.shrink(),
+          _activatedTabs.contains(canManageStaff ? 3 : 2) ? const ProfileTab() : const SizedBox.shrink(),
         ];
 
         final List<NavigationDestination> destinations = [
@@ -222,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 NavigationRail(
                   selectedIndex: safeIndex,
-                  onDestinationSelected: (index) => setState(() => _currentIndex = index),
+                  onDestinationSelected: _selectTab,
                   backgroundColor: ThemeService.cardBg(context),
                   indicatorColor: ThemeService.containerColor(context),
                   extended: Responsive.isWideScreen(context),
@@ -296,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(22),
                             onTap: () {
                               // Al presionar la foto abajito en tablet, ipad y Windows, envía directamente al perfil
-                              setState(() => _currentIndex = pages.length - 1);
+                              _selectTab(pages.length - 1);
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(4),
@@ -349,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: safeIndex,
-            onDestinationSelected: (index) => setState(() => _currentIndex = index),
+            onDestinationSelected: _selectTab,
             backgroundColor: ThemeService.cardBg(context),
             indicatorColor: ThemeService.containerColor(context),
             elevation: 2,

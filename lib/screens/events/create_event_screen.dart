@@ -28,12 +28,39 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   late EventType _selectedType;
   late DateTime _startDate;
-  late TimeOfDay _startTime;
   late DateTime _endDate;
-  late TimeOfDay _endTime;
   late bool _requiresAttendance;
 
+  // Turnos Independientes del Evento
+  bool _hasManana = true;
+  TimeOfDay _mananaStart = const TimeOfDay(hour: 8, minute: 30);
+  TimeOfDay _mananaEnd = const TimeOfDay(hour: 12, minute: 30);
+
+  bool _hasTarde = false;
+  TimeOfDay _tardeStart = const TimeOfDay(hour: 14, minute: 0);
+  TimeOfDay _tardeEnd = const TimeOfDay(hour: 18, minute: 0);
+
+  bool _hasNoche = false;
+  TimeOfDay _nocheStart = const TimeOfDay(hour: 18, minute: 30);
+  TimeOfDay _nocheEnd = const TimeOfDay(hour: 21, minute: 30);
+
   bool _isSubmitting = false;
+
+  static const List<String> _uoSugeridas = [
+    'Laboratorio de IA',
+    'Dirección de Investigación',
+    'Presidencia',
+    'Tecnologías (OTI)',
+    'Recursos Humanos',
+  ];
+
+  static const List<String> _ubicacionesSugeridas = [
+    'IIAP - Sede Central',
+    'Auditorio Principal',
+    'Sala de Capacitaciones',
+    'Virtual (Google Meet)',
+    'Virtual (Zoom)',
+  ];
 
   @override
   void initState() {
@@ -50,13 +77,64 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
     final initialStart = edit?.startDate ?? now.add(const Duration(hours: 1));
     _startDate = DateTime(initialStart.year, initialStart.month, initialStart.day);
-    _startTime = TimeOfDay(hour: initialStart.hour, minute: (initialStart.minute ~/ 5) * 5);
 
-    final initialEnd = edit?.endDate ?? initialStart.add(const Duration(hours: 2));
+    final initialEnd = edit?.endDate ?? initialStart.add(const Duration(hours: 4));
     _endDate = DateTime(initialEnd.year, initialEnd.month, initialEnd.day);
-    _endTime = TimeOfDay(hour: initialEnd.hour, minute: (initialEnd.minute ~/ 5) * 5);
 
     _requiresAttendance = edit?.requiresAttendance ?? true;
+
+    // Restaurar turnos si viene de edición
+    final editShifts = edit?.shifts;
+    if (editShifts != null && editShifts.isNotEmpty) {
+      _hasManana = false;
+      _hasTarde = false;
+      _hasNoche = false;
+      for (final s in editShifts) {
+        if (s.name == 'manana') {
+          _hasManana = s.enabled;
+          _mananaStart = _parseTimeOfDay(s.startTime, defaultHour: 8, defaultMinute: 30);
+          _mananaEnd = _parseTimeOfDay(s.endTime, defaultHour: 12, defaultMinute: 30);
+        } else if (s.name == 'tarde') {
+          _hasTarde = s.enabled;
+          _tardeStart = _parseTimeOfDay(s.startTime, defaultHour: 14, defaultMinute: 0);
+          _tardeEnd = _parseTimeOfDay(s.endTime, defaultHour: 18, defaultMinute: 0);
+        } else if (s.name == 'noche') {
+          _hasNoche = s.enabled;
+          _nocheStart = _parseTimeOfDay(s.startTime, defaultHour: 18, defaultMinute: 30);
+          _nocheEnd = _parseTimeOfDay(s.endTime, defaultHour: 21, defaultMinute: 30);
+        }
+      }
+      if (!_hasManana && !_hasTarde && !_hasNoche) {
+        _hasManana = true;
+      }
+    } else if (edit != null) {
+      final sHour = edit.startDate.hour;
+      final startTod = TimeOfDay(hour: edit.startDate.hour, minute: edit.startDate.minute);
+      final endTod = TimeOfDay(hour: edit.endDate.hour, minute: edit.endDate.minute);
+      if (sHour < 13) {
+        _hasManana = true;
+        _mananaStart = startTod;
+        _mananaEnd = endTod;
+      } else if (sHour < 18) {
+        _hasTarde = true;
+        _tardeStart = startTod;
+        _tardeEnd = endTod;
+      } else {
+        _hasNoche = true;
+        _nocheStart = startTod;
+        _nocheEnd = endTod;
+      }
+    }
+  }
+
+  TimeOfDay _parseTimeOfDay(String timeStr, {required int defaultHour, required int defaultMinute}) {
+    try {
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      }
+    } catch (_) {}
+    return TimeOfDay(hour: defaultHour, minute: defaultMinute);
   }
 
   @override
@@ -68,16 +146,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     super.dispose();
   }
 
-  DateTime _combineDateTime(DateTime date, TimeOfDay time) {
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
-
   String _formatDate(DateTime date) {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic'];
     return '${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _formatTime(TimeOfDay time) {
+  String _formatTimeOfDay(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
@@ -101,17 +175,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
-  Future<void> _selectStartTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _startTime,
-      helpText: 'Hora de inicio',
-    );
-    if (picked != null) {
-      setState(() => _startTime = picked);
-    }
-  }
-
   Future<void> _selectEndDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -125,28 +188,91 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
-  Future<void> _selectEndTime() async {
+  Future<void> _selectShiftTime({
+    required TimeOfDay initialTime,
+    required String title,
+    required ValueChanged<TimeOfDay> onSelected,
+  }) async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _endTime,
-      helpText: 'Hora de culminación',
+      initialTime: initialTime,
+      helpText: title,
     );
     if (picked != null) {
-      setState(() => _endTime = picked);
+      setState(() => onSelected(picked));
     }
   }
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final start = _combineDateTime(_startDate, _startTime);
-    final end = _combineDateTime(_endDate, _endTime);
+    // Validación obligatoria: al menos 1 turno activo
+    if (!_hasManana && !_hasTarde && !_hasNoche) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes activar al menos un turno para el evento (Mañana, Tarde o Noche).'),
+          backgroundColor: Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final activeShifts = <EventShift>[];
+    if (_hasManana) {
+      activeShifts.add(EventShift(
+        name: 'manana',
+        label: 'Turno Mañana',
+        startTime: _formatTimeOfDay(_mananaStart),
+        endTime: _formatTimeOfDay(_mananaEnd),
+        enabled: true,
+      ));
+    }
+    if (_hasTarde) {
+      activeShifts.add(EventShift(
+        name: 'tarde',
+        label: 'Turno Tarde',
+        startTime: _formatTimeOfDay(_tardeStart),
+        endTime: _formatTimeOfDay(_tardeEnd),
+        enabled: true,
+      ));
+    }
+    if (_hasNoche) {
+      activeShifts.add(EventShift(
+        name: 'noche',
+        label: 'Turno Noche',
+        startTime: _formatTimeOfDay(_nocheStart),
+        endTime: _formatTimeOfDay(_nocheEnd),
+        enabled: true,
+      ));
+    }
+
+    final firstShift = activeShifts.first;
+    final lastShift = activeShifts.last;
+    final startParts = firstShift.startTime.split(':');
+    final endParts = lastShift.endTime.split(':');
+
+    final start = DateTime(
+      _startDate.year,
+      _startDate.month,
+      _startDate.day,
+      int.parse(startParts[0]),
+      int.parse(startParts[1]),
+    );
+    final end = DateTime(
+      _endDate.year,
+      _endDate.month,
+      _endDate.day,
+      int.parse(endParts[0]),
+      int.parse(endParts[1]),
+    );
 
     if (end.isBefore(start) || end.isAtSameMomentAs(start)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('La fecha y hora de culminación debe ser posterior al inicio.'),
           backgroundColor: Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -168,6 +294,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           type: _selectedType,
           requiresAttendance: _requiresAttendance,
           organizationalUnit: uoVal,
+          shifts: activeShifts,
         );
         await EventService.updateEvent(updated);
         if (!mounted) return;
@@ -187,6 +314,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           type: _selectedType,
           requiresAttendance: _requiresAttendance,
           organizationalUnit: uoVal,
+          shifts: activeShifts,
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -325,7 +453,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Tipo de Evento
+                  // 1. Selector de Tipo de Evento (ChoiceChips con Iconos y Colores)
                   Text(
                     'Tipo de Evento',
                     style: TextStyle(
@@ -379,7 +507,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Título
+                  // 2. Título del Evento
                   AppTextField(
                     controller: _titleController,
                     label: 'Título del Evento *',
@@ -392,9 +520,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     },
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
 
-                  // Unidad Organizativa (UO)
+                  // 3. Unidad Organizativa (UO) con Selectores Rápidos
                   AppTextField(
                     controller: _uoController,
                     label: 'Unidad Organizativa (UO)',
@@ -405,23 +533,40 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [
-                      'Laboratorio de IA',
-                      'Dirección de Investigación',
-                      'Presidencia',
-                      'Tecnologías (OTI)',
-                      'Recursos Humanos',
-                    ].map((uo) => ActionChip(
-                      label: Text(uo, style: const TextStyle(fontSize: 11)),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      onPressed: () => setState(() => _uoController.text = uo),
-                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                    )).toList(),
+                    children: _uoSugeridas.map((uo) {
+                      final isMatch = _uoController.text.trim().toLowerCase() == uo.toLowerCase();
+                      return ActionChip(
+                        avatar: isMatch
+                            ? const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A))
+                            : null,
+                        label: Text(
+                          uo,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: isMatch ? FontWeight.bold : FontWeight.normal,
+                            color: isMatch
+                                ? (isDark ? Colors.white : const Color(0xFF16A34A))
+                                : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        onPressed: () => setState(() => _uoController.text = uo),
+                        backgroundColor: isMatch
+                            ? const Color(0xFF16A34A).withValues(alpha: isDark ? 0.25 : 0.12)
+                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                        side: BorderSide(
+                          color: isMatch
+                              ? const Color(0xFF16A34A)
+                              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      );
+                    }).toList(),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
 
-                  // Ubicación
+                  // 4. Ubicación / Plataforma con sugerencias rápidas
                   AppTextField(
                     controller: _locationController,
                     label: 'Ubicación / Plataforma *',
@@ -432,10 +577,45 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _ubicacionesSugeridas.map((loc) {
+                        final isMatch = _locationController.text.trim().toLowerCase() == loc.toLowerCase();
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ActionChip(
+                            label: Text(
+                              loc,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: isMatch ? FontWeight.bold : FontWeight.normal,
+                                color: isMatch
+                                    ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                    : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onPressed: () => setState(() => _locationController.text = loc),
+                            backgroundColor: isMatch
+                                ? const Color(0xFF2563EB).withValues(alpha: isDark ? 0.25 : 0.12)
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                            side: BorderSide(
+                              color: isMatch
+                                  ? const Color(0xFF2563EB)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
 
-                  // Descripción
+                  // 5. Descripción o Agenda
                   AppTextField(
                     controller: _descriptionController,
                     label: 'Descripción o Agenda',
@@ -447,9 +627,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Fecha y Hora de Inicio
+                  // 6. Selector de Vigencia del Evento (Fecha de Inicio y Fecha de Fin)
                   Text(
-                    'Inicio del Evento',
+                    'Vigencia del Evento',
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
@@ -460,7 +640,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   Row(
                     children: [
                       Expanded(
-                        flex: 3,
                         child: _buildPickerCard(
                           icon: Icons.calendar_today_rounded,
                           label: 'Fecha Inicio',
@@ -470,33 +649,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        flex: 2,
-                        child: _buildPickerCard(
-                          icon: Icons.access_time_rounded,
-                          label: 'Hora',
-                          value: _formatTime(_startTime),
-                          onTap: _selectStartTime,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Fecha y Hora de Culminación
-                  Text(
-                    'Culminación del Evento',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF334155),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
                         child: _buildPickerCard(
                           icon: Icons.event_available_rounded,
                           label: 'Fecha Fin',
@@ -504,22 +656,108 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           onTap: _selectEndDate,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: _buildPickerCard(
-                          icon: Icons.access_time_filled_rounded,
-                          label: 'Hora',
-                          value: _formatTime(_endTime),
-                          onTap: _selectEndTime,
-                        ),
-                      ),
                     ],
                   ),
 
                   const SizedBox(height: 22),
 
-                  // Switch de Control de Asistencia
+                  // 7. Gestión de Turnos Independientes (Mañana, Tarde, Noche)
+                  Row(
+                    children: [
+                      Icon(Icons.schedule_rounded, size: 18, color: ThemeService.primaryColor(context)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Turnos y Horarios Independientes',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Puedes activar 1 solo turno, 2 turnos o los 3 turnos en el mismo evento:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ☀️ Turno Mañana
+                  _buildShiftCard(
+                    context: context,
+                    title: 'Turno Mañana',
+                    subtitle: 'Jornada matutina',
+                    icon: Icons.wb_sunny_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    isEnabled: _hasManana,
+                    onToggle: (v) => setState(() => _hasManana = v),
+                    startTime: _mananaStart,
+                    endTime: _mananaEnd,
+                    onPickStart: () => _selectShiftTime(
+                      initialTime: _mananaStart,
+                      title: 'Hora Inicio - Turno Mañana',
+                      onSelected: (t) => _mananaStart = t,
+                    ),
+                    onPickEnd: () => _selectShiftTime(
+                      initialTime: _mananaEnd,
+                      title: 'Hora Fin - Turno Mañana',
+                      onSelected: (t) => _mananaEnd = t,
+                    ),
+                  ),
+
+                  // ⛅ Turno Tarde
+                  _buildShiftCard(
+                    context: context,
+                    title: 'Turno Tarde',
+                    subtitle: 'Jornada vespertina',
+                    icon: Icons.wb_twilight_rounded,
+                    iconColor: const Color(0xFFF97316),
+                    isEnabled: _hasTarde,
+                    onToggle: (v) => setState(() => _hasTarde = v),
+                    startTime: _tardeStart,
+                    endTime: _tardeEnd,
+                    onPickStart: () => _selectShiftTime(
+                      initialTime: _tardeStart,
+                      title: 'Hora Inicio - Turno Tarde',
+                      onSelected: (t) => _tardeStart = t,
+                    ),
+                    onPickEnd: () => _selectShiftTime(
+                      initialTime: _tardeEnd,
+                      title: 'Hora Fin - Turno Tarde',
+                      onSelected: (t) => _tardeEnd = t,
+                    ),
+                  ),
+
+                  // 🌙 Turno Noche
+                  _buildShiftCard(
+                    context: context,
+                    title: 'Turno Noche',
+                    subtitle: 'Jornada nocturna',
+                    icon: Icons.nights_stay_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    isEnabled: _hasNoche,
+                    onToggle: (v) => setState(() => _hasNoche = v),
+                    startTime: _nocheStart,
+                    endTime: _nocheEnd,
+                    onPickStart: () => _selectShiftTime(
+                      initialTime: _nocheStart,
+                      title: 'Hora Inicio - Turno Noche',
+                      onSelected: (t) => _nocheStart = t,
+                    ),
+                    onPickEnd: () => _selectShiftTime(
+                      initialTime: _nocheEnd,
+                      title: 'Hora Fin - Turno Noche',
+                      onSelected: (t) => _nocheEnd = t,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 8. Switch de Control de Asistencia con QR
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
@@ -581,7 +819,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Botón de Enviar
+                  // Botón de Publicar / Guardar Evento
                   AppButton(
                     text: isEdit ? 'Guardar Cambios' : 'Publicar Evento',
                     icon: isEdit ? Icons.check_circle_outline_rounded : Icons.add_circle_outline_rounded,
@@ -648,6 +886,167 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildShiftCard({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool isEnabled,
+    required ValueChanged<bool> onToggle,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+    required VoidCallback onPickStart,
+    required VoidCallback onPickEnd,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ThemeService.cardBg(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEnabled
+              ? iconColor.withValues(alpha: 0.5)
+              : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+          width: isEnabled ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: isEnabled ? 0.15 : 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: isEnabled ? iconColor : Colors.grey),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: isEnabled,
+                activeTrackColor: iconColor,
+                onChanged: onToggle,
+              ),
+            ],
+          ),
+          if (isEnabled) ...[
+            const SizedBox(height: 10),
+            Divider(height: 1, color: isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: onPickStart,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Hora Inicio',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.access_time_rounded, size: 14, color: iconColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatTimeOfDay(startTime),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: onPickEnd,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Hora Fin',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.access_time_filled_rounded, size: 14, color: iconColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatTimeOfDay(endTime),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

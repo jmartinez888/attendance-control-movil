@@ -837,9 +837,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       _buildInfoRow(
                         context,
                         icon: Icons.event_available_rounded,
-                        label: 'Culminación',
+                        label: 'Culminaci�n',
                         value: _formatDateTime(_currentEvent.endDate),
                       ),
+                      if (_currentEvent.shifts.where((s) => s.enabled).isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _buildShiftsInfoRow(
+                          context,
+                          _currentEvent.shifts.where((s) => s.enabled).toList(),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       _buildInfoRow(
                         context,
@@ -1532,6 +1539,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                           ),
                                         ),
                                       ],
+                                      if (attendee.shift != null && attendee.shift!.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: (attendee.shift == 'manana'
+                                                    ? const Color(0xFFF59E0B)
+                                                    : attendee.shift == 'tarde'
+                                                        ? const Color(0xFFF97316)
+                                                        : const Color(0xFF6366F1))
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            attendee.shift == 'manana'
+                                                ? 'MAÑANA'
+                                                : attendee.shift == 'tarde'
+                                                    ? 'TARDE'
+                                                    : attendee.shift == 'noche'
+                                                        ? 'NOCHE'
+                                                        : attendee.shift!.toUpperCase(),
+                                            style: TextStyle(
+                                              color: attendee.shift == 'manana'
+                                                  ? const Color(0xFFF59E0B)
+                                                  : attendee.shift == 'tarde'
+                                                      ? const Color(0xFFF97316)
+                                                      : const Color(0xFF6366F1),
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                   const SizedBox(height: 2),
@@ -1620,6 +1660,70 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
         ),
       ),
+    );
+  }
+
+    Widget _buildShiftsInfoRow(BuildContext context, List<EventShift> shifts) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.schedule_rounded, size: 18, color: ThemeService.primaryColor(context)),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 85,
+          child: Text(
+            'Turnos',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: shifts.map((s) {
+              final color = s.name == 'manana'
+                  ? const Color(0xFFF59E0B)
+                  : s.name == 'tarde'
+                      ? const Color(0xFFF97316)
+                      : const Color(0xFF6366F1);
+              final icon = s.name == 'manana'
+                  ? Icons.wb_sunny_rounded
+                  : s.name == 'tarde'
+                      ? Icons.wb_twilight_rounded
+                      : Icons.nights_stay_rounded;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 13, color: color),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${s.label} (${s.startTime} - ${s.endTime})',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 

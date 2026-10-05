@@ -46,10 +46,15 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
   String? _errorMessage;
   Timer? _pollingTimer;
   Timer? _rotationResetTimer;
+  bool _isProjectorMode = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.mode == QrMode.attendance && AttendanceService.lastActiveQr != null) {
+      _qrData = AttendanceService.lastActiveQr;
+      _isLoading = false;
+    }
     StorageService.currentUserNotifier.addListener(_onUserRoleChanged);
     _loadQr(forceNew: false);
     _startPolling();
@@ -74,10 +79,10 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
   }
 
   void _startPolling() {
-    // Sondeo rápido cada 1.5 segundos para rotación instantánea al escaneo
+    // Sondeo balanceado cada 3.5 segundos para rotación al escaneo sin saturar la red
     if (widget.mode == QrMode.attendance) {
       _pollingTimer?.cancel();
-      _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _checkForRotatedQr());
+      _pollingTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) => _checkForRotatedQr());
     }
   }
 
@@ -240,6 +245,13 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
       subtitle = 'Válido por 10 minutos • Límite institucional';
     }
 
+    if (_isProjectorMode) {
+      return _buildProjectorView(context, title, subtitle);
+    }
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth >= 780;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -248,6 +260,13 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.fullscreen_rounded),
+            tooltip: 'Modo Proyector / Pantalla Completa',
+            onPressed: () {
+              setState(() => _isProjectorMode = true);
+            },
+          ),
           IconButton(
             icon: _isGeneratingNew
                 ? const SizedBox(
@@ -264,354 +283,576 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: EdgeInsets.symmetric(
+              horizontal: isWide ? 32 : (screenWidth < 360 ? 14 : 20),
+              vertical: 20,
+            ),
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: Responsive.isTablet(context) ? (Responsive.isLargeTablet(context) ? 680 : 580) : 440),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Banner de Identidad Criptográfica SHA-256
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              constraints: BoxConstraints(
+                maxWidth: isWide ? 960 : 440,
+              ),
+              child: isWide
+                  ? _buildTwoColumnLayout(context, isDark, isAttendance, title, subtitle, currentUser)
+                  : _buildSingleColumnLayout(context, isDark, isAttendance, title, subtitle, currentUser),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Vista de 1 columna: Celulares Android y iPhones
+  Widget _buildSingleColumnLayout(
+    BuildContext context,
+    bool isDark,
+    bool isAttendance,
+    String title,
+    String subtitle,
+    UserModel? currentUser,
+  ) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildHeaderBanner(isDark, isAttendance, subtitle),
+        const SizedBox(height: 18),
+        _buildRotatedBadge(),
+        _buildQrCard(context, isDark),
+        const SizedBox(height: 18),
+        if (_qrData != null && !_isLoading && _errorMessage == null) ...[
+          _buildTimerCard(isDark),
+          const SizedBox(height: 12),
+          _buildIssuerBadge(isDark, currentUser),
+          const SizedBox(height: 18),
+          _buildRegenerateButton(),
+        ],
+      ],
+    );
+  }
+
+  /// Vista de 2 columnas: Tablets Android, iPads, Laptops y Monitores
+  Widget _buildTwoColumnLayout(
+    BuildContext context,
+    bool isDark,
+    bool isAttendance,
+    String title,
+    String subtitle,
+    UserModel? currentUser,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Columna Izquierda: Información, Temporizador, Controles
+        Expanded(
+          flex: 5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeaderBanner(isDark, isAttendance, subtitle),
+              const SizedBox(height: 18),
+              if (_qrData != null && !_isLoading && _errorMessage == null) ...[
+                _buildTimerCard(isDark),
+                const SizedBox(height: 14),
+                _buildIssuerBadge(isDark, currentUser),
+                const SizedBox(height: 18),
+                _buildRegenerateButton(),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () => setState(() => _isProjectorMode = true),
+                  icon: const Icon(Icons.tv_rounded, size: 20),
+                  label: const Text(
+                    'Proyectar en Pantalla Gigante',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 32),
+        // Columna Derecha: Código QR Ampliado
+        Expanded(
+          flex: 6,
+          child: Column(
+            children: [
+              _buildRotatedBadge(),
+              _buildQrCard(context, isDark),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Banner superior descriptivo
+  Widget _buildHeaderBanner(bool isDark, bool isAttendance, String subtitle) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.verified_user_rounded,
+              color: Color(0xFF16A34A),
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        isAttendance
+                            ? 'Toma de Asistencia'
+                            : (widget.mode == QrMode.roleAssignment ? 'Designación de Rol' : 'Designación'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF16A34A).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.verified_user_rounded,
-                            color: Color(0xFF16A34A),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      isAttendance
-                                          ? 'Toma de Asistencia'
-                                          : (widget.mode == QrMode.roleAssignment ? 'Designación de Rol' : 'Designación'),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF16A34A).withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.4)),
-                                    ),
-                                    child: const Text(
-                                      'SHA-256',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF16A34A),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                subtitle,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Aviso visual animado si se acaba de renovar automáticamente
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _justRotated
-                        ? Container(
-                            key: const ValueKey('rotated_badge'),
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF16A34A),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF16A34A).withValues(alpha: 0.45),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.autorenew_rounded, color: Colors.white, size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  '¡NUEVO QR GENERADO TRAS ESCANEO!',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11.5,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(key: ValueKey('empty')),
-                  ),
-
-                  // Caja del Código QR Generado
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 350),
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: _justRotated ? const Color(0xFF16A34A) : Colors.transparent,
-                        width: _justRotated ? 3.5 : 0,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _justRotated
-                              ? const Color(0xFF16A34A).withValues(alpha: 0.4)
-                              : Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                          blurRadius: _justRotated ? 24 : 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: _isLoading
-                        ? SizedBox(
-                            height: Responsive.qrDisplaySize(context) + 20,
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF16A34A)),
-                                  ),
-                                  SizedBox(height: 14),
-                                  Text(
-                                    'Generando código QR con SHA-256...',
-                                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : _errorMessage != null
-                            ? SizedBox(
-                                height: 250,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        _errorMessage!,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      AppButton(
-                                        text: 'Reintentar',
-                                        height: 40,
-                                        width: 130,
-                                        onPressed: () => _loadQr(forceNew: true),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 350),
-                                    transitionBuilder: (child, anim) => ScaleTransition(
-                                      scale: anim,
-                                      child: FadeTransition(opacity: anim, child: child),
-                                    ),
-                                    child: QrImageView(
-                                      key: ValueKey(_qrData!.qrCode),
-                                      data: _qrData!.qrCode,
-                                      version: QrVersions.auto,
-                                      size: Responsive.qrDisplaySize(context),
-                                      backgroundColor: Colors.white,
-                                      eyeStyle: const QrEyeStyle(
-                                        eyeShape: QrEyeShape.square,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                      dataModuleStyle: const QrDataModuleStyle(
-                                        dataModuleShape: QrDataModuleShape.square,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-
-                                  // Visualizador de Hash SHA-256 con opción de copiar
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.lock_rounded, size: 14, color: Color(0xFF475569)),
-                                        const SizedBox(width: 6),
-                                        Flexible(
-                                          child: Text(
-                                            'SHA: ${_qrData!.qrCode.length >= 18 ? "${_qrData!.qrCode.substring(0, 18)}..." : _qrData!.qrCode}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontFamily: 'monospace',
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF334155),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        InkWell(
-                                          onTap: _copyHashToClipboard,
-                                          borderRadius: BorderRadius.circular(4),
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(2),
-                                            child: Icon(Icons.copy_rounded, size: 16, color: Color(0xFF2563EB)),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Temporizador de 5 minutos
-                  if (_qrData != null && !_isLoading && _errorMessage == null) ...[
+                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        'SHA-256',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF16A34A),
                         ),
                       ),
-                      child: QrCountdownTimer(
-                        expiresAt: _qrData!.expiresAt,
-                        onExpired: () => _loadQr(forceNew: true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Badge animado de rotación
+  Widget _buildRotatedBadge() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: _justRotated
+          ? Container(
+              key: const ValueKey('rotated_badge'),
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.autorenew_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    '¡NUEVO QR GENERADO TRAS ESCANEO!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink(key: ValueKey('empty')),
+    );
+  }
+
+  /// Tarjeta del código QR
+  Widget _buildQrCard(BuildContext context, bool isDark) {
+    final qrSize = Responsive.qrDisplaySize(context);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: _justRotated ? const Color(0xFF16A34A) : Colors.transparent,
+          width: _justRotated ? 3.5 : 0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _justRotated
+                ? const Color(0xFF16A34A).withValues(alpha: 0.4)
+                : Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: _justRotated ? 24 : 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: _isLoading
+          ? SizedBox(
+              height: qrSize + 20,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF16A34A)),
+                    ),
+                    SizedBox(height: 14),
+                    Text(
+                      'Generando código QR con SHA-256...',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _errorMessage != null
+              ? SizedBox(
+                  height: 250,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13),
+                        ),
+                        const SizedBox(height: 16),
+                        AppButton(
+                          text: 'Reintentar',
+                          height: 40,
+                          width: 130,
+                          onPressed: () => _loadQr(forceNew: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      transitionBuilder: (child, anim) => ScaleTransition(
+                        scale: anim,
+                        child: FadeTransition(opacity: anim, child: child),
+                      ),
+                      child: QrImageView(
+                        key: ValueKey(_qrData!.qrCode),
+                        data: _qrData!.qrCode,
+                        version: QrVersions.auto,
+                        size: qrSize,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: Color(0xFF0F172A),
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Color(0xFF0F172A),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
-
-                    // Emisor del QR
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            currentUser?.isAdmin == true
-                                ? Icons.admin_panel_settings_rounded
-                                : Icons.security_rounded,
-                            size: 16,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
+                          const Icon(Icons.lock_rounded, size: 14, color: Color(0xFF475569)),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'Emisor: ${currentUser?.fullName ?? "Supervisor"} (${currentUser?.role.displayName ?? "Supervisor"})',
-                              textAlign: TextAlign.center,
+                              'SHA: ${_qrData!.qrCode.length >= 18 ? "${_qrData!.qrCode.substring(0, 18)}..." : _qrData!.qrCode}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: _copyHashToClipboard,
+                            borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.copy_rounded, size: 16, color: Color(0xFF2563EB)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  /// Tarjeta de temporizador
+  Widget _buildTimerCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: QrCountdownTimer(
+        expiresAt: _qrData!.expiresAt,
+        onExpired: () => _loadQr(forceNew: true),
+      ),
+    );
+  }
+
+  /// Badge de emisor
+  Widget _buildIssuerBadge(bool isDark, UserModel? currentUser) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            currentUser?.isAdmin == true
+                ? Icons.admin_panel_settings_rounded
+                : Icons.security_rounded,
+            size: 16,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              'Emisor: ${currentUser?.fullName ?? "Supervisor"} (${currentUser?.role.displayName ?? "Supervisor"})',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Botón de regeneración
+  Widget _buildRegenerateButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF16A34A),
+          foregroundColor: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: _isGeneratingNew ? null : () => _loadQr(forceNew: true),
+        icon: _isGeneratingNew
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.autorenew_rounded, size: 20),
+        label: Text(
+          _isGeneratingNew ? 'Generando nuevo SHA...' : 'Generar Nuevo QR (SHA)',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  /// Vista de Pantalla Completa / Proyector (Monitores, Proyectores, iPads en Atril)
+  Widget _buildProjectorView(BuildContext context, String title, String subtitle) {
+    final projectorQrSize = Responsive.qrDisplaySize(context, isProjectorMode: true);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Badge Institucional de Proyección
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified_user_rounded, color: Color(0xFF22C55E), size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF22C55E).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'SHA-256',
                               style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: Color(0xFF22C55E),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 24),
 
-                    const SizedBox(height: 20),
+                    // QR Gigante de Alta Nitidez
+                    Container(
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.35),
+                            blurRadius: 40,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: _qrData != null
+                          ? QrImageView(
+                              key: ValueKey('proj_${_qrData!.qrCode}'),
+                              data: _qrData!.qrCode,
+                              version: QrVersions.auto,
+                              size: projectorQrSize,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Color(0xFF0F172A),
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Color(0xFF0F172A),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 24),
 
-                    // Botón de Regenerar QR SHA
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    // Temporizador en modo proyector
+                    if (_qrData != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF334155)),
                         ),
-                        onPressed: _isGeneratingNew ? null : () => _loadQr(forceNew: true),
-                        icon: _isGeneratingNew
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.autorenew_rounded, size: 20),
-                        label: Text(
-                          _isGeneratingNew ? 'Generando nuevo SHA...' : 'Generar Nuevo QR (SHA)',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        child: QrCountdownTimer(
+                          expiresAt: _qrData!.expiresAt,
+                          onExpired: () => _loadQr(forceNew: true),
                         ),
                       ),
-                    ),
                   ],
-                ],
+                ),
               ),
             ),
-          ),
+
+            // Botón Salir de Modo Proyector
+            Positioned(
+              top: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                backgroundColor: const Color(0xFF334155),
+                foregroundColor: Colors.white,
+                tooltip: 'Salir de Pantalla Completa',
+                onPressed: () => setState(() => _isProjectorMode = false),
+                child: const Icon(Icons.close_rounded),
+              ),
+            ),
+          ],
         ),
       ),
     );

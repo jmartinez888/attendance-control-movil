@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '¡Bienvenido, ' + user.fullName + '!',
+                  '¡Bienvenido, ${user.fullName}!',
                   style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
@@ -158,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al conectar con Google: ' + e.toString()),
+          content: Text('Error al conectar con Google: $e'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),

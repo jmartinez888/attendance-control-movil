@@ -82,6 +82,38 @@ enum EventStatus {
   }
 }
 
+class EventShift {
+  final String name; // 'MANANA', 'TARDE', 'NOCHE'
+  final String label; // 'Turno Mañana', 'Turno Tarde', 'Turno Noche'
+  final String startTime; // '08:30'
+  final String endTime; // '12:30'
+  final bool enabled;
+
+  EventShift({
+    required this.name,
+    required this.label,
+    required this.startTime,
+    required this.endTime,
+    this.enabled = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'label': label,
+    'start_time': startTime,
+    'end_time': endTime,
+    'enabled': enabled,
+  };
+
+  factory EventShift.fromJson(Map<String, dynamic> json) => EventShift(
+    name: json['name']?.toString() ?? '',
+    label: json['label']?.toString() ?? '',
+    startTime: json['start_time']?.toString() ?? json['startTime']?.toString() ?? '',
+    endTime: json['end_time']?.toString() ?? json['endTime']?.toString() ?? '',
+    enabled: json['enabled'] != false,
+  );
+}
+
 class EventAttendeeModel {
   final String id;
   final String userId;
@@ -98,6 +130,7 @@ class EventAttendeeModel {
   final bool isExternal;
   final DateTime registeredAt;
   final String? notes;
+  final String? shift;
 
   EventAttendeeModel({
     required this.id,
@@ -115,6 +148,7 @@ class EventAttendeeModel {
     this.isExternal = false,
     required this.registeredAt,
     this.notes,
+    this.shift,
   });
 
   factory EventAttendeeModel.fromJson(Map<String, dynamic> json) {
@@ -138,6 +172,7 @@ class EventAttendeeModel {
               ? (DateTime.tryParse(json['registeredAt'].toString())?.toLocal() ?? DateTime.now())
               : DateTime.now()),
       notes: json['notes']?.toString(),
+      shift: json['shift']?.toString(),
     );
   }
 
@@ -158,6 +193,7 @@ class EventAttendeeModel {
       'is_external': isExternal,
       'registered_at': registeredAt.toIso8601String(),
       'notes': notes,
+      'shift': shift,
     };
   }
 }
@@ -181,6 +217,7 @@ class EventModel {
   final List<EventAttendeeModel> attendees;
   final List<String> managerIds;
   final String? organizationalUnit;
+  final List<EventShift> shifts;
 
   EventModel({
     required this.id,
@@ -201,6 +238,7 @@ class EventModel {
     this.attendees = const [],
     this.managerIds = const [],
     this.organizationalUnit,
+    this.shifts = const [],
   });
 
   bool canUserManageEvent(String? userId, String? userRole) {
@@ -246,6 +284,15 @@ class EventModel {
 
     // Parse manager_ids (simple-array or list)
     List<String> parsedManagerIds = [];
+    var rawShifts = json['shifts'];
+    List<EventShift> parsedShifts = [];
+    if (rawShifts is List) {
+      parsedShifts = rawShifts
+          .whereType<Map<String, dynamic>>()
+          .map((item) => EventShift.fromJson(item))
+          .toList();
+    }
+
     final rawManagers = json['manager_ids'] ?? json['managerIds'];
     if (rawManagers is List) {
       parsedManagerIds = rawManagers.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
@@ -278,6 +325,7 @@ class EventModel {
       attendees: attendeesList,
       managerIds: parsedManagerIds,
       organizationalUnit: json['organizational_unit']?.toString() ?? json['organizationalUnit']?.toString(),
+      shifts: parsedShifts,
     );
   }
 
@@ -301,6 +349,7 @@ class EventModel {
       'attendees': attendees.map((a) => a.toJson()).toList(),
       'manager_ids': managerIds,
       'organizational_unit': organizationalUnit,
+      'shifts': shifts.map((s) => s.toJson()).toList(),
     };
   }
 
@@ -323,6 +372,7 @@ class EventModel {
     List<EventAttendeeModel>? attendees,
     List<String>? managerIds,
     String? organizationalUnit,
+    List<EventShift>? shifts,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -343,6 +393,7 @@ class EventModel {
       attendees: attendees ?? this.attendees,
       managerIds: managerIds ?? this.managerIds,
       organizationalUnit: organizationalUnit ?? this.organizationalUnit,
+      shifts: shifts ?? this.shifts,
     );
   }
 }

@@ -42,32 +42,10 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
     final isAdmin = currentUser?.isAdmin == true;
 
     try {
-      if (isAdmin) {
-        try {
-          final supData = await UsersService.getSupervisors();
-          final list = supData['supervisors'] is List ? (supData['supervisors'] as List) : [];
-          final totalCount = (supData['total'] is int)
-              ? supData['total'] as int
-              : (supData['current_count'] is int ? supData['current_count'] as int : list.length);
-          final maxSup = (supData['max_limit'] is int)
-              ? supData['max_limit'] as int
-              : (supData['max_supervisors'] is int ? supData['max_supervisors'] as int : 3);
-          final avail = (supData['available_slots'] is int)
-              ? supData['available_slots'] as int
-              : (maxSup - totalCount).clamp(0, maxSup);
-
-          _activeSupervisorsCount = totalCount;
-          _maxSupervisors = maxSup;
-          _availableSlots = avail;
-        } catch (_) {}
-      }
-
-      List<UserModel> usersData = [];
-      try {
-        usersData = await UsersService.findAll();
-      } catch (_) {
-        // En caso de que el usuario sea supervisor y el endpoint general requiera admin,
-        // extraemos el directorio de colaboradores desde los registros institucionales
+      final supFuture = isAdmin
+          ? UsersService.getSupervisors().catchError((_) => <String, dynamic>{})
+          : Future.value(<String, dynamic>{});
+      final usersFuture = UsersService.findAll().catchError((_) async {
         try {
           final records = await AttendanceService.getAllRecords();
           final Map<String, UserModel> map = {};
@@ -81,8 +59,31 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
               );
             }
           }
-          usersData = map.values.toList();
-        } catch (_) {}
+          return map.values.toList();
+        } catch (_) {
+          return <UserModel>[];
+        }
+      });
+
+      final results = await Future.wait([supFuture, usersFuture]);
+      final supData = results[0] as Map<String, dynamic>;
+      final usersData = results[1] as List<UserModel>;
+
+      if (isAdmin && supData.isNotEmpty) {
+        final list = supData['supervisors'] is List ? (supData['supervisors'] as List) : [];
+        final totalCount = (supData['total'] is int)
+            ? supData['total'] as int
+            : (supData['current_count'] is int ? supData['current_count'] as int : list.length);
+        final maxSup = (supData['max_limit'] is int)
+            ? supData['max_limit'] as int
+            : (supData['max_supervisors'] is int ? supData['max_supervisors'] as int : 3);
+        final avail = (supData['available_slots'] is int)
+            ? supData['available_slots'] as int
+            : (maxSup - totalCount).clamp(0, maxSup);
+
+        _activeSupervisorsCount = totalCount;
+        _maxSupervisors = maxSup;
+        _availableSlots = avail;
       }
 
       if (mounted) {
@@ -179,6 +180,61 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
     }
   }
 
+  Future<void> _confirmUnbindDevice(UserModel targetUser) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.phonelink_erase_rounded, color: Color(0xFFD97706), size: 24),
+            SizedBox(width: 8),
+            Text('Desvincular Dispositivo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          '¿Deseas desvincular el celular registrado para ${targetUser.fullName}?\n\n'
+          'Esto permitirá que el colaborador pueda registrar su asistencia desde un nuevo teléfono.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sí, Desvincular', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await UsersService.unbindDevice(targetUser.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dispositivo de ${targetUser.fullName} desvinculado con éxito.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadData();
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444)),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al desvincular dispositivo: $e'), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
   Widget _buildAdminUserActions(UserModel u) {
     final current = StorageService.currentUser;
     final isSuperAdmin = current?.isSuperAdmin == true;
@@ -193,6 +249,9 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (value) {
         switch (value) {
+          case 'unbind_device':
+            _confirmUnbindDevice(u);
+            break;
           case 'set_admin':
             _changeUserRole(u, UserRole.ADMIN);
             break;
@@ -227,6 +286,17 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
             ],
           ),
         ),
+        if (isAdmin)
+          const PopupMenuItem<String>(
+            value: 'unbind_device',
+            child: Row(
+              children: [
+                Icon(Icons.phonelink_erase_rounded, size: 18, color: Color(0xFFD97706)),
+                SizedBox(width: 8),
+                Text('Desvincular Celular / Equipo', style: TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
         if (isSuperAdmin && u.role != UserRole.ADMIN)
           const PopupMenuItem<String>(
             value: 'set_admin',
