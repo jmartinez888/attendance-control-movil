@@ -1197,11 +1197,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
         final bgColor = hasWallpaper
             ? Colors.transparent
-            : (isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC));
+            : ThemeService.scaffoldBg(context);
         final cardBg = hasWallpaper
-            ? (isDark ? const Color(0xFF111827).withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.88))
-            : (isDark ? const Color(0xFF111827) : Colors.white);
-        final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+            ? ThemeService.cardBg(context).withValues(alpha: 0.85)
+            : ThemeService.cardBg(context);
+        final cardBorder = ThemeService.cardBorder(context);
 
         return Scaffold(
           backgroundColor: bgColor,

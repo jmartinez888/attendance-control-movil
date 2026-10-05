@@ -118,7 +118,7 @@ class _DashboardTabState extends State<DashboardTab> {
               Text('Datos sincronizados en tiempo real', style: TextStyle(fontSize: 12.5)),
             ],
           ),
-          backgroundColor: const Color(0xFF131D21),
+          backgroundColor: _cardBg(context),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           duration: const Duration(seconds: 2),
@@ -205,7 +205,7 @@ class _DashboardTabState extends State<DashboardTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('No hay eventos activos para proyectar QR. Crea un nuevo evento primero.'),
-            backgroundColor: const Color(0xFF131D21),
+            backgroundColor: _cardBg(context),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -369,7 +369,7 @@ class _DashboardTabState extends State<DashboardTab> {
         return SafeArea(
           child: RefreshIndicator(
             color: const Color(0xFF10B981),
-            backgroundColor: const Color(0xFF131D21),
+            backgroundColor: _cardBg(context),
             onRefresh: _refreshAll,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -461,9 +461,9 @@ class _DashboardTabState extends State<DashboardTab> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF131D21),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+            border: Border.all(color: _cardBorder(context), width: 1.2),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -587,7 +587,7 @@ class _DashboardTabState extends State<DashboardTab> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF10B981),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF131D21), width: 2),
+                              border: Border.all(color: _cardBg(context), width: 2),
                             ),
                             child: const Center(
                               child: Icon(Icons.check, size: 9, color: Colors.black),
@@ -677,9 +677,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,9 +720,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -774,9 +774,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -863,9 +863,9 @@ class _DashboardTabState extends State<DashboardTab> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -966,9 +966,9 @@ class _DashboardTabState extends State<DashboardTab> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -1106,9 +1106,9 @@ class _DashboardTabState extends State<DashboardTab> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1F323A)),
+              border: Border.all(color: _cardBorder(context)),
             ),
             child: const Row(
               children: [
@@ -1188,7 +1188,7 @@ class _DashboardTabState extends State<DashboardTab> {
         height: 230,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+          border: Border.all(color: _cardBorder(context), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
@@ -1468,9 +1468,9 @@ class _DashboardTabState extends State<DashboardTab> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF131D21),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+            border: Border.all(color: _cardBorder(context), width: 1.2),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -1568,7 +1568,7 @@ class _DashboardTabState extends State<DashboardTab> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF10B981),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF131D21), width: 2),
+                            border: Border.all(color: _cardBg(context), width: 2),
                           ),
                         ),
                       ),
@@ -1697,9 +1697,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1740,9 +1740,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1794,9 +1794,9 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1883,9 +1883,9 @@ class _DashboardTabState extends State<DashboardTab> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -1984,9 +1984,9 @@ class _DashboardTabState extends State<DashboardTab> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -2145,9 +2145,9 @@ class _DashboardTabState extends State<DashboardTab> {
             borderRadius: BorderRadius.circular(20),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF131D21),
+                color: _cardBg(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+                border: Border.all(color: _cardBorder(context), width: 1.2),
               ),
               child: IntrinsicHeight(
                 child: Row(
@@ -2323,9 +2323,9 @@ class _DashboardTabState extends State<DashboardTab> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1F323A)),
+              border: Border.all(color: _cardBorder(context)),
             ),
             child: const Row(
               children: [
@@ -2426,9 +2426,9 @@ class _DashboardTabState extends State<DashboardTab> {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: const Color(0xFF142226),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1F333B)),
+            border: Border.all(color: _cardBorder(context)),
           ),
           child: const Icon(Icons.verified_rounded, color: Color(0xFF34D399), size: 22),
         ),
@@ -2665,9 +2665,9 @@ class _DashboardTabState extends State<DashboardTab> {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: const Color(0xFF142226),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1F333B)),
+            border: Border.all(color: _cardBorder(context)),
           ),
           child: const LeafLogo(size: 22),
         ),
@@ -2773,9 +2773,9 @@ _buildCircularMuteBell(context),
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131D21),
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+        border: Border.all(color: _cardBorder(context), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -2869,7 +2869,7 @@ _buildCircularMuteBell(context),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF131D21), width: 1.8),
+                        border: Border.all(color: _cardBg(context), width: 1.8),
                       ),
                     ),
                   ),
@@ -2988,9 +2988,9 @@ _buildCircularMuteBell(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3018,9 +3018,9 @@ _buildCircularMuteBell(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3048,9 +3048,9 @@ _buildCircularMuteBell(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131D21),
+                  color: _cardBg(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1F323A)),
+                  border: Border.all(color: _cardBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3115,9 +3115,9 @@ _buildCircularMuteBell(context),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -3190,9 +3190,9 @@ _buildCircularMuteBell(context),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF131D21),
+              color: _cardBg(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F323A), width: 1.2),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
             ),
             child: Row(
               children: [
@@ -3320,7 +3320,7 @@ _buildCircularMuteBell(context),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF131D21),
+                color: _cardBg(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: featuredEvent.isActiveNow
@@ -3511,6 +3511,25 @@ _buildCircularMuteBell(context),
   }
 
   
+
+  Color _cardBg(BuildContext context) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    return hasWallpaper
+        ? ThemeService.cardBg(context).withValues(alpha: 0.82)
+        : ThemeService.cardBg(context);
+  }
+
+  Color _cardBorder(BuildContext context) {
+    return ThemeService.cardBorder(context);
+  }
+
+  Color _innerBoxBg(BuildContext context) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    return hasWallpaper
+        ? ThemeService.containerColor(context).withValues(alpha: 0.22)
+        : ThemeService.containerColor(context).withValues(alpha: 0.35);
+  }
+
   Widget _buildMuteNotificationBell(BuildContext context, {double iconSize = 22, EdgeInsets padding = EdgeInsets.zero}) {
     return ValueListenableBuilder<bool>(
       valueListenable: NotificationService.isMutedNotifier,
@@ -3540,7 +3559,7 @@ _buildCircularMuteBell(context),
                       ),
                     ],
                   ),
-                  backgroundColor: const Color(0xFF131D21),
+                  backgroundColor: _cardBg(context),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   duration: const Duration(seconds: 2),
@@ -3591,7 +3610,7 @@ _buildCircularMuteBell(context),
                       ),
                     ],
                   ),
-                  backgroundColor: const Color(0xFF131D21),
+                  backgroundColor: _cardBg(context),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   duration: const Duration(seconds: 2),
@@ -3668,7 +3687,7 @@ _buildCircularMuteBell(context),
                       ),
                     ],
                   ),
-                  backgroundColor: const Color(0xFF131D21),
+                  backgroundColor: _cardBg(context),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   duration: const Duration(seconds: 2),
@@ -3703,9 +3722,9 @@ _buildCircularMuteBell(context),
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: const Color(0xFF142226),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1F333B)),
+            border: Border.all(color: _cardBorder(context)),
           ),
           child: const LeafLogo(size: 22),
         ),
@@ -3803,7 +3822,6 @@ _buildCircularMuteBell(context),
 
   Widget _buildUserWelcomeProfileCard(BuildContext context, UserModel user) {
     final themeColor = ThemeService.primaryColor(context);
-    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
     final nameParts = user.fullName.trim().split(RegExp(r'\s+'));
     final firstName = nameParts.isNotEmpty ? nameParts.first : 'Usuario';
     final cargo = user.office.isNotEmpty ? user.office : (user.position?.isNotEmpty == true ? user.position! : 'Servidor Público');
@@ -3812,9 +3830,9 @@ _buildCircularMuteBell(context),
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       decoration: BoxDecoration(
-        color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: themeColor.withValues(alpha: 0.22), width: 1.2),
+        border: Border.all(color: _cardBorder(context), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -3863,7 +3881,7 @@ _buildCircularMuteBell(context),
                         decoration: BoxDecoration(
                           color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF131D21), width: 2.2),
+                          border: Border.all(color: _cardBg(context), width: 2.2),
                         ),
                       );
                     },
@@ -3974,14 +3992,13 @@ _buildCircularMuteBell(context),
     AttendanceModel? exit,
   ) {
     final themeColor = ThemeService.primaryColor(context);
-    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: themeColor.withValues(alpha: 0.22), width: 1.2),
+        border: Border.all(color: _cardBorder(context), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
@@ -4021,9 +4038,9 @@ _buildCircularMuteBell(context),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0E171A),
+                    color: _innerBoxBg(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF1B2B31)),
+                    border: Border.all(color: _cardBorder(context).withValues(alpha: 0.6)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -4086,9 +4103,9 @@ _buildCircularMuteBell(context),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0E171A),
+                    color: _innerBoxBg(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF1B2B31)),
+                    border: Border.all(color: _cardBorder(context).withValues(alpha: 0.6)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -4151,7 +4168,6 @@ _buildCircularMuteBell(context),
 
   Widget _buildUserAttendanceControlSection(BuildContext context, UserModel user) {
     final themeColor = ThemeService.primaryColor(context);
-    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4182,7 +4198,7 @@ _buildCircularMuteBell(context),
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: hasWallpaper ? const Color(0xFF0F171A).withValues(alpha: 0.8) : const Color(0xFF131D21),
+            color: _cardBg(context),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(color: themeColor.withValues(alpha: 0.25), width: 1.2),
             boxShadow: [
@@ -4220,7 +4236,7 @@ _buildCircularMuteBell(context),
                           decoration: BoxDecoration(
                             color: themeColor,
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF131D21), width: 2),
+                            border: Border.all(color: _cardBg(context), width: 2),
                           ),
                         ),
                       ),
@@ -4333,7 +4349,7 @@ _buildCircularMuteBell(context),
             child: Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: const Color(0xFF131D21),
+                color: _cardBg(context),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: featuredEvent.isActiveNow ? const Color(0xFF10B981).withValues(alpha: 0.7) : const Color(0xFF1F323A),
@@ -4488,7 +4504,7 @@ _buildCircularMuteBell(context),
                 decoration: BoxDecoration(
                   color: colors[i % colors.length],
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF131D21), width: 2),
+                  border: Border.all(color: _cardBg(context), width: 2),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -4510,7 +4526,7 @@ _buildCircularMuteBell(context),
                 decoration: BoxDecoration(
                   color: const Color(0xFF263C45),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF131D21), width: 2),
+                  border: Border.all(color: _cardBg(context), width: 2),
                 ),
                 alignment: Alignment.center,
                 child: Text(

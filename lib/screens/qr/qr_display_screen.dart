@@ -12,6 +12,8 @@ import '../../services/auth_service.dart';
 import '../../services/api_client.dart';
 import '../../widgets/qr_countdown_timer.dart';
 import '../../widgets/app_button.dart';
+import '../../services/theme_service.dart';
+import '../../services/wallpaper_service.dart';
 
 enum QrMode {
   attendance,
@@ -285,9 +287,10 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isWide = screenWidth >= 780;
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
       appBar: AppBar(
         title: Text(
           title,
@@ -581,13 +584,19 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
 
   /// Banner superior descriptivo
   Widget _buildHeaderBanner(bool isDark, bool isAttendance, String subtitle) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    final cardBg = hasWallpaper
+        ? ThemeService.cardBg(context).withValues(alpha: 0.85)
+        : ThemeService.cardBg(context);
+    final cardBorder = ThemeService.cardBorder(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: cardBorder,
         ),
         boxShadow: [
           BoxShadow(
@@ -842,13 +851,19 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
 
   /// Tarjeta de temporizador
   Widget _buildTimerCard(bool isDark) {
+    final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+    final cardBg = hasWallpaper
+        ? ThemeService.cardBg(context).withValues(alpha: 0.85)
+        : ThemeService.cardBg(context);
+    final cardBorder = ThemeService.cardBorder(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          color: cardBorder,
         ),
       ),
       child: QrCountdownTimer(
@@ -863,8 +878,9 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        color: ThemeService.containerColor(context).withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ThemeService.cardBorder(context).withValues(alpha: 0.6)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -900,8 +916,8 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
       height: 48,
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF16A34A),
-          foregroundColor: Colors.white,
+          backgroundColor: ThemeService.primaryColor(context),
+          foregroundColor: const Color(0xFF091417),
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
