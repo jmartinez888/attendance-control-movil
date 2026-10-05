@@ -7,6 +7,7 @@ import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import 'event_detail_screen.dart';
 import 'event_qr_display_screen.dart';
@@ -1110,8 +1111,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   Widget _buildStepperHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const mintGreen = Color(0xFF34D399);
-    const darkGreen = Color(0xFF064E3B);
+    final mintGreen = ThemeService.primaryColor(context);
+    final darkGreen = isDark ? const Color(0xFF062319) : const Color(0xFF064E3B);
     final inactiveBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
     final inactiveLine = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
     final inactiveText = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
@@ -1128,7 +1129,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         ),
         child: Center(
           child: isDone
-              ? const Icon(Icons.check, size: 16, color: darkGreen)
+              ? Icon(Icons.check, size: 16, color: darkGreen)
               : Text(
                   number,
                   style: TextStyle(
@@ -1433,17 +1434,30 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isEdit = widget.eventToEdit != null;
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ThemeService.accentColorNotifier,
+        WallpaperService.wallpaperNotifier,
+      ]),
+      builder: (context, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final isEdit = widget.eventToEdit != null;
+        final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
 
-    final bgColor = isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-    const mintGreen = Color(0xFF34D399);
-    const darkGreen = Color(0xFF064E3B);
+        const mintGreen = Color(0xFF34D399);
+        const darkGreen = Color(0xFF064E3B);
+        final themePrimary = ThemeService.primaryColor(context);
 
-    return Scaffold(
-      backgroundColor: bgColor,
+        final bgColor = hasWallpaper
+            ? Colors.transparent
+            : (isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC));
+        final cardBg = hasWallpaper
+            ? (isDark ? const Color(0xFF111827).withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.88))
+            : (isDark ? const Color(0xFF111827) : Colors.white);
+        final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+
+        return Scaffold(
+          backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
@@ -1948,8 +1962,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: mintGreen,
-                          foregroundColor: darkGreen,
+                          backgroundColor: themePrimary,
+                          foregroundColor: isDark ? Colors.white : Colors.black,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2713,8 +2727,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: mintGreen,
-                          foregroundColor: darkGreen,
+                          backgroundColor: themePrimary,
+                          foregroundColor: isDark ? Colors.white : Colors.black,
                           elevation: 3,
                           shadowColor: mintGreen.withValues(alpha: 0.4),
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -2723,14 +2737,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         onPressed: _isSubmitting ? null : _handleSave,
                         child: _isSubmitting
                             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: darkGreen))
-                            : const Row(
+                            : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.rocket_launch_rounded, color: darkGreen, size: 20),
+                                  Icon(Icons.rocket_launch_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
                                   SizedBox(width: 8),
                                   Text(
                                     'Publicar Evento Oficial',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: darkGreen),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? Colors.white : Colors.black),
                                   ),
                                 ],
                               ),
@@ -2756,6 +2770,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 

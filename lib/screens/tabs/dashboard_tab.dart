@@ -10,6 +10,8 @@ import '../../services/connectivity_service.dart';
 import '../../services/event_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/theme_service.dart';
+import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/leaf_logo.dart';
 import '../events/create_event_screen.dart';
@@ -328,7 +330,13 @@ class _DashboardTabState extends State<DashboardTab> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserModel?>(
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ThemeService.accentColorNotifier,
+        WallpaperService.wallpaperNotifier,
+      ]),
+      builder: (context, _) {
+        return ValueListenableBuilder<UserModel?>(
       valueListenable: StorageService.currentUserNotifier,
       builder: (context, rawUser, _) {
         final user = rawUser ?? StorageService.currentUser;
@@ -387,6 +395,8 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           ),
         );
+      },
+    );
       },
     );
   }
@@ -495,30 +505,41 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                   ),
 
-                  // Badge Verde: [ ● En línea ]
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF09291E),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF135A40)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.circle, color: Color(0xFF10B981), size: 6.5),
-                        SizedBox(width: 5),
-                        Text(
-                          'En línea',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF34D399),
-                            letterSpacing: 0.2,
+                  // Badge Dinámico: [ ● En línea ] / [ ● Desconectado ]
+                  ValueListenableBuilder<bool>(
+                    valueListenable: ConnectivityService.isOnlineNotifier,
+                    builder: (context, isOnline, _) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                        decoration: BoxDecoration(
+                          color: isOnline ? const Color(0xFF09291E) : const Color(0xFF2E1212),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isOnline ? const Color(0xFF135A40) : const Color(0xFF7F1D1D),
                           ),
                         ),
-                      ],
-                    ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              size: 6.5,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isOnline ? 'En línea' : 'Desconectado',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: isOnline ? const Color(0xFF34D399) : const Color(0xFFEF4444),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1112,7 +1133,7 @@ class _DashboardTabState extends State<DashboardTab> {
           height: 48,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF34D399),
+              backgroundColor: ThemeService.primaryColor(context),
               foregroundColor: const Color(0xFF091417),
               elevation: 4,
               shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
@@ -2329,7 +2350,7 @@ class _DashboardTabState extends State<DashboardTab> {
           height: 48,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF34D399),
+              backgroundColor: ThemeService.primaryColor(context),
               foregroundColor: const Color(0xFF091417),
               elevation: 4,
               shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
@@ -3725,14 +3746,19 @@ class _DashboardTabState extends State<DashboardTab> {
                 Positioned(
                   bottom: 2,
                   right: 3,
-                  child: Container(
-                    width: 13,
-                    height: 13,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF131D21), width: 2.2),
-                    ),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: ConnectivityService.isOnlineNotifier,
+                    builder: (context, isOnline, _) {
+                      return Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF131D21), width: 2.2),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -3781,14 +3807,29 @@ class _DashboardTabState extends State<DashboardTab> {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F3224),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFF176044)),
-                      ),
-                      child: const Text('USUARIO ACTIVO', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF10B981), letterSpacing: 0.3)),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: ConnectivityService.isOnlineNotifier,
+                      builder: (context, isOnline, _) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isOnline ? const Color(0xFF0F3224) : const Color(0xFF2E1212),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isOnline ? const Color(0xFF176044) : const Color(0xFF7F1D1D),
+                            ),
+                          ),
+                          child: Text(
+                            isOnline ? 'USUARIO ACTIVO' : 'DESCONECTADO',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.bold,
+                              color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     Text('•  DNI ${_maskDni(user.documentNumber)}', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Color(0xFF8FA3AF), letterSpacing: 0.2)),
                   ],

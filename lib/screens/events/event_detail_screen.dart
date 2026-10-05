@@ -7,6 +7,7 @@ import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import '../qr/qr_scanner_screen.dart';
 import '../qr/qr_display_screen.dart';
@@ -654,10 +655,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     required IconData icon,
     required String label,
     int? badgeCount,
+    Color? customActiveColor,
   }) {
     final isSelected = _selectedTab == index;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const activeColor = Color(0xFF34D399);
+    final activeColor = customActiveColor ?? ThemeService.primaryColor(context);
     final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     return Expanded(
@@ -665,7 +667,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         onTap: () => setState(() => _selectedTab = index),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
@@ -674,38 +676,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 17, color: isSelected ? activeColor : inactiveColor),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? (isDark ? Colors.white : const Color(0xFF0F172A)) : inactiveColor,
-                ),
-              ),
-              if (badgeCount != null) ...[
-                const SizedBox(width: 5),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF064E3B) : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-                    borderRadius: BorderRadius.circular(10),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: isSelected ? activeColor : inactiveColor),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? (isDark ? Colors.white : const Color(0xFF0F172A)) : inactiveColor,
                   ),
-                  child: Text(
-                    '$badgeCount',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? activeColor : inactiveColor,
+                ),
+                if (badgeCount != null) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? activeColor.withValues(alpha: 0.22)
+                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$badgeCount',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? activeColor : inactiveColor,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1165,26 +1173,38 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final currentUser = StorageService.currentUser;
-    final isSuperAdmin = currentUser?.isSuperAdmin == true;
-    final isAdmin = currentUser?.isAdmin == true || isSuperAdmin;
-    final isAssignedManager = currentUser != null && _currentEvent.managerIds.contains(currentUser.id);
-    final canManage = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
-    final canProjectQr = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
-    final canScanAttendance = !isAdmin && !isSuperAdmin && !isAssignedManager;
-    final isAlreadyRegistered = currentUser != null && _currentEvent.isUserRegistered(currentUser.id);
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ThemeService.accentColorNotifier,
+        WallpaperService.wallpaperNotifier,
+      ]),
+      builder: (context, _) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final currentUser = StorageService.currentUser;
+        final isSuperAdmin = currentUser?.isSuperAdmin == true;
+        final isAdmin = currentUser?.isAdmin == true || isSuperAdmin;
+        final isAssignedManager = currentUser != null && _currentEvent.managerIds.contains(currentUser.id);
+        final canManage = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
+        final canProjectQr = currentUser?.canManageEvents == true || isSuperAdmin || isAdmin || isAssignedManager;
+        final canScanAttendance = !isAdmin && !isSuperAdmin && !isAssignedManager;
+        final isAlreadyRegistered = currentUser != null && _currentEvent.isUserRegistered(currentUser.id);
 
-    // Paleta de colores idéntica al nuevo diseño solicitado
-    final bgColor = isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-    const mintGreen = Color(0xFF34D399);
-    const darkGreen = Color(0xFF064E3B);
+        final hasWallpaper = WallpaperService.currentWallpaper.hasWallpaper;
+        const mintGreen = Color(0xFF34D399);
+        const darkGreen = Color(0xFF064E3B);
+        final themePrimary = ThemeService.primaryColor(context);
 
-    return Scaffold(
-      backgroundColor: bgColor,
+        final bgColor = hasWallpaper
+            ? Colors.transparent
+            : (isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC));
+        final cardBg = hasWallpaper
+            ? (isDark ? const Color(0xFF111827).withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.88))
+            : (isDark ? const Color(0xFF111827) : Colors.white);
+        final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+
+        return Scaffold(
+          backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
@@ -1412,52 +1432,70 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 4. DOS BOTONES DE ACCIÓN PRINCIPALES (Proyectar QR | Registro Manual)
+                  // 4. DOS BOTONES DE ACCIÓN PRINCIPALES (Proyectar QR | Registro Manual - 100% RESPONSIVOS)
                   Row(
                     children: [
                       // Botón 1: Proyectar QR
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: mintGreen,
-                            foregroundColor: darkGreen,
+                            backgroundColor: themePrimary,
+                            foregroundColor: isDark ? Colors.white : const Color(0xFF064E3B),
                             elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           onPressed: _handleOpenQrDisplay,
-                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: darkGreen),
-                          label: const Text(
-                            'QR',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: darkGreen,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.qr_code_scanner_rounded, size: 19, color: darkGreen),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'QR',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: darkGreen,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
 
                       // Botón 2: Registro Manual
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                             foregroundColor: const Color(0xFFF59E0B),
                             elevation: 0,
                             side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           onPressed: canManage ? _handleManualRegisterAttendee : null,
-                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 19, color: Color(0xFFF59E0B)),
-                          label: const Text(
-                            'Registro Manual',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFF59E0B),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.person_add_alt_1_rounded, size: 18, color: Color(0xFFF59E0B)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Registro Manual',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFF59E0B),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -1833,6 +1871,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 
