@@ -19,7 +19,6 @@ class SupervisorsTab extends StatefulWidget {
 
 class _SupervisorsTabState extends State<SupervisorsTab> {
   bool _isLoading = true;
-  int _activeSupervisorsCount = 0;
   int _maxSupervisors = 3;
   int _availableSlots = 3;
   List<UserModel> _allUsers = [];
@@ -81,7 +80,6 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
             ? supData['available_slots'] as int
             : (maxSup - totalCount).clamp(0, maxSup);
 
-        _activeSupervisorsCount = totalCount;
         _maxSupervisors = maxSup;
         _availableSlots = avail;
       }
@@ -663,8 +661,12 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                     Navigator.of(ctx).pop();
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const QrDisplayScreen(
+                        builder: (_) => QrDisplayScreen(
                           mode: QrMode.supervisorAssignment,
+                          customTitle: 'Designar Supervisor de Asistencia',
+                          customSubtitle: 'Escanear para otorgar rol de Supervisor de Asistencia',
+                          availableSlots: _availableSlots,
+                          maxSupervisors: _maxSupervisors,
                         ),
                       ),
                     );
@@ -1192,98 +1194,27 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                     child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                     children: [
-                      // Tarjeta de Cupos de Supervisores (SOLO ADMIN)
+                      // Botón Designar con QR (Admin, Gestores, Supervisores) (SOLO ADMIN)
                       if (isAdmin) ...[
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: ThemeService.cardBg(context),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: ThemeService.cardBorder(context),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF9333EA),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF9333EA).withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(Icons.shield_rounded, color: Color(0xFF9333EA), size: 24),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Cupos de Supervisores',
-                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                          ),
-                                          Text(
-                                            'Disponibles: $_availableSlots de $_maxSupervisors',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: _availableSlots > 0 ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      '$_activeSupervisorsCount / $_maxSupervisors',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: _availableSlots > 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF9333EA),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                  icon: const Icon(Icons.qr_code_rounded, size: 20),
-                                  label: const Text(
-                                    'Designar con QR (Admin, Gestores, Supervisores)',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                  onPressed: _showDesignateQrModal,
-                                ),
-                              ),
-                            ],
+                            icon: const Icon(Icons.qr_code_rounded, size: 22),
+                            label: const Text(
+                              'Designar con QR (Admin, Gestores, Supervisores)',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            onPressed: _showDesignateQrModal,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 18),
                       ],
 
                       // Barra de Búsqueda de Personal

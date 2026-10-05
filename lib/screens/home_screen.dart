@@ -227,116 +227,126 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // VISTA ESCRITORIO (Windows, macOS, Web, Pantallas anchas): Sidebar lateral NavigationRail
         if (isDesktop) {
+          final isWide = Responsive.isWideScreen(context);
           return Scaffold(
             body: Row(
               children: [
-                NavigationRail(
-                  selectedIndex: safeIndex,
-                  onDestinationSelected: _selectTab,
-                  backgroundColor: ThemeService.cardBg(context),
-                  indicatorColor: ThemeService.containerColor(context),
-                  extended: Responsive.isWideScreen(context),
-                  minExtendedWidth: 210,
-                  elevation: 1,
-                  leading: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: ThemeService.primaryColor(context).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.fingerprint_rounded,
-                            color: ThemeService.primaryColor(context),
-                            size: 26,
-                          ),
-                        ),
-                        if (Responsive.isWideScreen(context)) ...[
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'IIAP Asistencia',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                Container(
+                  width: isWide ? 210 : 72,
+                  color: ThemeService.cardBg(context),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: NavigationRail(
+                          selectedIndex: safeIndex,
+                          onDestinationSelected: _selectTab,
+                          backgroundColor: Colors.transparent,
+                          indicatorColor: ThemeService.containerColor(context),
+                          extended: isWide,
+                          minWidth: 72,
+                          minExtendedWidth: 210,
+                          elevation: 0,
+                          leading: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: ThemeService.primaryColor(context).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.fingerprint_rounded,
+                                    color: ThemeService.primaryColor(context),
+                                    size: 26,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                currentUser?.fullName ?? '',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  destinations: destinations.map((d) {
-                    return NavigationRailDestination(
-                      icon: d.icon,
-                      selectedIcon: d.selectedIcon ?? d.icon,
-                      label: Text(
-                        d.label,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                    );
-                  }).toList(),
-                  trailing: Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: Tooltip(
-                          message: 'Ver mi Perfil (${currentUser?.fullName ?? ""})',
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(22),
-                            onTap: () {
-                              // Al presionar la foto abajito en tablet, ipad y Windows, envía directamente al perfil
-                              _selectTab(pages.length - 1);
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: ThemeService.primaryColor(context),
-                                backgroundImage: (currentUser?.photoUrl != null &&
-                                        currentUser!.photoUrl!.isNotEmpty)
-                                    ? NetworkImage(currentUser.photoUrl!)
-                                    : null,
-                                child: (currentUser?.photoUrl == null ||
-                                        currentUser!.photoUrl!.isEmpty)
-                                    ? Text(
-                                        (currentUser?.fullName.isNotEmpty == true
-                                                ? currentUser!.fullName[0]
-                                                : 'U')
-                                            .toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                if (isWide) ...[
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'IIAP Asistencia',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
                                         ),
-                                      )
-                                    : null,
+                                        Text(
+                                          currentUser?.fullName ?? '',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          destinations: destinations.map((d) {
+                            return NavigationRailDestination(
+                              icon: d.icon,
+                              selectedIcon: d.selectedIcon ?? d.icon,
+                              label: Text(
+                                d.label,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20, top: 8),
+                        child: Center(
+                          child: Tooltip(
+                            message: 'Ver mi Perfil (${currentUser?.fullName ?? ""})',
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () {
+                                _selectTab(pages.length - 1);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: ThemeService.primaryColor(context),
+                                  backgroundImage: (currentUser?.photoUrl != null &&
+                                          currentUser!.photoUrl!.isNotEmpty)
+                                      ? NetworkImage(currentUser.photoUrl!)
+                                      : null,
+                                  child: (currentUser?.photoUrl == null ||
+                                          currentUser!.photoUrl!.isEmpty)
+                                      ? Text(
+                                          (currentUser?.fullName.isNotEmpty == true
+                                                  ? currentUser!.fullName[0]
+                                                  : 'U')
+                                              .toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        )
+                                      : null,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),

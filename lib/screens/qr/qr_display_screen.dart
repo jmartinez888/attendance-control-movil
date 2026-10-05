@@ -7,6 +7,7 @@ import '../../models/qr_model.dart';
 import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 import '../../services/attendance_service.dart';
+import '../../services/users_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_client.dart';
 import '../../widgets/qr_countdown_timer.dart';
@@ -24,6 +25,8 @@ class QrDisplayScreen extends StatefulWidget {
   final String? targetEventId;
   final String? customTitle;
   final String? customSubtitle;
+  final int? availableSlots;
+  final int? maxSupervisors;
 
   const QrDisplayScreen({
     super.key,
@@ -32,6 +35,8 @@ class QrDisplayScreen extends StatefulWidget {
     this.targetEventId,
     this.customTitle,
     this.customSubtitle,
+    this.availableSlots,
+    this.maxSupervisors,
   });
 
   @override
@@ -47,10 +52,14 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
   Timer? _pollingTimer;
   Timer? _rotationResetTimer;
   bool _isProjectorMode = false;
+  int? _availableSlots;
+  int? _maxSupervisors;
 
   @override
   void initState() {
     super.initState();
+    _availableSlots = widget.availableSlots;
+    _maxSupervisors = widget.maxSupervisors;
     if (widget.mode == QrMode.attendance && AttendanceService.lastActiveQr != null) {
       _qrData = AttendanceService.lastActiveQr;
       _isLoading = false;
@@ -163,6 +172,31 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
         response = QrGeneratedResponse.fromJson(res);
       } else {
         response = await AttendanceService.generateSupervisorQr();
+      }
+
+      // Consultar cupos de supervisores en tiempo real si corresponde
+      if (widget.mode == QrMode.supervisorAssignment || widget.targetRole == 'SUPERVISOR') {
+        try {
+          final supData = await UsersService.getSupervisors();
+          if (supData.isNotEmpty) {
+            final list = supData['supervisors'] is List ? (supData['supervisors'] as List) : [];
+            final totalCount = (supData['total'] is int)
+                ? supData['total'] as int
+                : (supData['current_count'] is int ? supData['current_count'] as int : list.length);
+            final maxSup = (supData['max_limit'] is int)
+                ? supData['max_limit'] as int
+                : (supData['max_supervisors'] is int ? supData['max_supervisors'] as int : 3);
+            final avail = (supData['available_slots'] is int)
+                ? supData['available_slots'] as int
+                : (maxSup - totalCount).clamp(0, maxSup);
+            if (mounted) {
+              setState(() {
+                _availableSlots = avail;
+                _maxSupervisors = maxSup;
+              });
+            }
+          }
+        } catch (_) {}
       }
 
       if (mounted) {
@@ -314,6 +348,10 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildHeaderBanner(isDark, isAttendance, subtitle),
+        if (!isAttendance) ...[
+          const SizedBox(height: 14),
+          _buildQuotaBanner(isDark),
+        ],
         const SizedBox(height: 18),
         _buildRotatedBadge(),
         _buildQrCard(context, isDark),
@@ -348,6 +386,10 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeaderBanner(isDark, isAttendance, subtitle),
+              if (!isAttendance) ...[
+                const SizedBox(height: 14),
+                _buildQuotaBanner(isDark),
+              ],
               const SizedBox(height: 18),
               if (_qrData != null && !_isLoading && _errorMessage == null) ...[
                 _buildTimerCard(isDark),
@@ -384,6 +426,156 @@ class _QrDisplayScreenState extends State<QrDisplayScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Tarjeta de Cupos / Disponibilidad de Roles
+  Widget _buildQuotaBanner(bool isDark) {
+    if (widget.mode == QrMode.attendance) return const SizedBox.shrink();
+
+    final isSupervisor = widget.mode == QrMode.supervisorAssignment || widget.targetRole == 'SUPERVISOR';
+
+    if (isSupervisor) {
+      final avail = _availableSlots ?? 2;
+      final max = _maxSupervisors ?? 3;
+      final hasSlots = avail > 0;
+      final color = hasSlots ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: isDark ? 0.4 : 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.shield_rounded, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Cupos de Supervisores',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: isDark ? 0.25 : 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: color),
+                        ),
+                        child: Text(
+                          '$avail de $max',
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    hasSlots
+                        ? 'Disponibles: $avail de $max'
+                        : 'Sin cupos disponibles (0 de $max)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Para Admin de Eventos / UO y Gestor de Eventos / UO (Sin límite)
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.4 : 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2563EB).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.all_inclusive_rounded, color: Color(0xFF2563EB), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Cupos para este Rol',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.25 : 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF2563EB)),
+                      ),
+                      child: const Text(
+                        'Sin límite',
+                        style: TextStyle(
+                          color: Color(0xFF2563EB),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'No tiene límite de designaciones para esta sede',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

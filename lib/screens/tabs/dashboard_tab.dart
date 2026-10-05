@@ -65,7 +65,7 @@ class _DashboardTabState extends State<DashboardTab> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
           ),
           content: const Text(
-            'La funci├│n Generar QR con cifrado SHA-256 est├í reservada exclusivamente para el Administrador y los 3 Supervisores autorizados para la toma de asistencia.',
+            'La función Generar QR con cifrado SHA-256 está reservada exclusivamente para el Administrador y los 3 Supervisores autorizados para la toma de asistencia.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
@@ -243,7 +243,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      isOnline ? 'En l├¡nea' : 'Desconectado',
+                                      isOnline ? 'En línea' : 'Desconectado',
                                       style: TextStyle(
                                         color: isOnline ? Colors.white : const Color(0xFFFEE2E2),
                                         fontSize: 10.5,
@@ -308,7 +308,7 @@ class _DashboardTabState extends State<DashboardTab> {
 
                 const SizedBox(height: 22),
 
-                // Secci├│n de Botones Principales: Generar QR y Escanear QR
+                // Sección de Botones Principales: Generar QR y Escanear QR
                 Row(
                   children: [
                     Expanded(
@@ -350,9 +350,9 @@ class _DashboardTabState extends State<DashboardTab> {
                 const SizedBox(height: 12),
 
                 // ACCIONES CONDICIONALES POR ROL:
-                // - Administrador: SOLO bot├│n "Generar QR"
+                // - Administrador: SOLO botón "Generar QR"
                 // - Supervisores: AMBOS botones ("Generar QR" y "Escanear QR" para marcar su propia asistencia)
-                // - Personal regular: SOLO bot├│n "Escanear QR"
+                // - Personal regular: SOLO botón "Escanear QR"
                 if (user.isSupervisor && Responsive.isTablet(context)) ...[
                   Row(
                     children: [
@@ -360,7 +360,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         child: _buildActionCard(
                           context,
                           title: 'Generar QR de Asistencia',
-                          subtitle: 'Emisi├│n con cifrado SHA-256 (Rotaci├│n autom├ítica)',
+                          subtitle: 'Emisión con cifrado SHA-256 (Rotación automática)',
                           icon: Icons.qr_code_2_rounded,
                           color: const Color(0xFF16A34A),
                           badgeText: 'SHA-256',
@@ -377,7 +377,7 @@ class _DashboardTabState extends State<DashboardTab> {
                           subtitle: 'Registra tu asistencia escaneando el QR institucional',
                           icon: Icons.qr_code_scanner_rounded,
                           color: const Color(0xFF2563EB),
-                          badgeText: 'C├üMARA',
+                          badgeText: 'CÁMARA',
                           badgeColor: const Color(0xFF2563EB),
                           isLocked: false,
                           onTap: () => _handleEscanearQr(context),
@@ -390,7 +390,7 @@ class _DashboardTabState extends State<DashboardTab> {
                     _buildActionCard(
                       context,
                       title: 'Generar QR de Asistencia',
-                      subtitle: 'Emisi├│n institucional con cifrado SHA-256 (Rotaci├│n autom├ítica)',
+                      subtitle: 'Emisión institucional con cifrado SHA-256 (Rotación automática)',
                       icon: Icons.qr_code_2_rounded,
                       color: const Color(0xFF16A34A),
                       badgeText: 'SHA-256',
@@ -418,10 +418,10 @@ class _DashboardTabState extends State<DashboardTab> {
                     _buildActionCard(
                       context,
                       title: 'Escanear QR',
-                      subtitle: 'Registra tu asistencia escaneando el c├│digo QR institucional',
+                      subtitle: 'Registra tu asistencia escaneando el código QR institucional',
                       icon: Icons.qr_code_scanner_rounded,
                       color: const Color(0xFF2563EB),
-                      badgeText: 'C├üMARA',
+                      badgeText: 'CÁMARA',
                       badgeColor: const Color(0xFF2563EB),
                       isLocked: false,
                       onTap: () => _handleEscanearQr(context),
@@ -431,7 +431,7 @@ class _DashboardTabState extends State<DashboardTab> {
 
                 const SizedBox(height: 22),
 
-                // Secci├│n Eventos Institucionales
+                // Sección Eventos Institucionales
                 _buildEventsSection(context, user),
 
                 const SizedBox(height: 24),
@@ -692,7 +692,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  featuredEvent.isActiveNow ? 'En curso' : 'Pr├│ximo',
+                                  featuredEvent.isActiveNow ? 'En curso' : 'Próximo',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
