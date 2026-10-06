@@ -1432,79 +1432,81 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 4. DOS BOTONES DE ACCIÓN PRINCIPALES (Proyectar QR | Registro Manual - 100% RESPONSIVOS)
-                  Row(
-                    children: [
-                      // Botón 1: Proyectar QR
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: themePrimary,
-                            foregroundColor: isDark ? Colors.white : const Color(0xFF064E3B),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          onPressed: _handleOpenQrDisplay,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.qr_code_scanner_rounded, size: 19, color: darkGreen),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'QR',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: darkGreen,
+                  // 4. DOS BOTONES DE ACCIÓN PRINCIPALES (Solo si tiene permisos: Supervisor, Gestor, Admin o Encargado)
+                  if (canProjectQr || canManage) ...[
+                    Row(
+                      children: [
+                        // Botón 1: Proyectar QR
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: themePrimary,
+                              foregroundColor: isDark ? Colors.white : const Color(0xFF064E3B),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            onPressed: _handleOpenQrDisplay,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.qr_code_scanner_rounded, size: 19, color: darkGreen),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'QR',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: darkGreen,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
+                        const SizedBox(width: 10),
 
-                      // Botón 2: Registro Manual
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                            foregroundColor: const Color(0xFFF59E0B),
-                            elevation: 0,
-                            side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          onPressed: canManage ? _handleManualRegisterAttendee : null,
-                          child: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.person_add_alt_1_rounded, size: 18, color: Color(0xFFF59E0B)),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Registro Manual',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFF59E0B),
+                        // Botón 2: Registro Manual
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              foregroundColor: const Color(0xFFF59E0B),
+                              elevation: 0,
+                              side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            onPressed: _handleManualRegisterAttendee,
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_add_alt_1_rounded, size: 18, color: Color(0xFFF59E0B)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Registro Manual',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFF59E0B),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                  ],
 
-                  // 5. BARRA DE NAVEGACIÓN DE 3 PESTAÑAS (TABS)
+                  // 5. BARRA DE NAVEGACIÓN DE PESTAÑAS (TABS - Adaptativas según rol)
                   Container(
                     decoration: BoxDecoration(
                       border: Border(
@@ -1521,13 +1523,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           icon: Icons.info_outline_rounded,
                           label: 'Info & Temario',
                         ),
+                        if (canProjectQr)
+                          _buildTabItem(
+                            index: 1,
+                            icon: Icons.qr_code_scanner_rounded,
+                            label: 'Control & QR',
+                          ),
                         _buildTabItem(
-                          index: 1,
-                          icon: Icons.qr_code_scanner_rounded,
-                          label: 'Control & QR',
-                        ),
-                        _buildTabItem(
-                          index: 2,
+                          index: canProjectQr ? 2 : 1,
                           icon: Icons.people_outline_rounded,
                           label: 'Participantes',
                           badgeCount: _currentEvent.attendees.length,
@@ -1735,78 +1738,51 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         ),
                       ),
                     ],
-                  ] else if (_selectedTab == 1) ...[
-                    // PESTAÑA 1: Control & QR
-                    if (canProjectQr) ...[
-                      _buildQrOptionCard(
-                        context: context,
-                        title: 'QR para Personal IIAP y Registrados',
-                        badge: 'SISTEMA IIAP',
-                        badgeColor: const Color(0xFF10B981),
-                        icon: Icons.domain_rounded,
-                        description: 'Proyecta el código para que los colaboradores con la app móvil confirmen su asistencia al instante.',
-                        buttonText: 'QR Registrados',
-                        buttonColor: const Color(0xFF10B981),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => EventQrDisplayScreen(
-                                event: _currentEvent,
-                                initialMode: EventQrMode.registered,
-                              ),
+                  ] else if (canProjectQr && _selectedTab == 1) ...[
+                    // PESTAÑA 1: Control & QR (solo visible para roles autorizados)
+                    _buildQrOptionCard(
+                      context: context,
+                      title: 'QR para Personal IIAP y Registrados',
+                      badge: 'SISTEMA IIAP',
+                      badgeColor: const Color(0xFF10B981),
+                      icon: Icons.domain_rounded,
+                      description: 'Proyecta el código para que los colaboradores con la app móvil confirmen su asistencia al instante.',
+                      buttonText: 'QR Registrados',
+                      buttonColor: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => EventQrDisplayScreen(
+                              event: _currentEvent,
+                              initialMode: EventQrMode.registered,
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildQrOptionCard(
-                        context: context,
-                        title: 'QR para Invitados y Público Externo',
-                        badge: 'INVITADOS Y EXTERNOS',
-                        badgeColor: const Color(0xFF0284C7),
-                        icon: Icons.public_rounded,
-                        description: 'Abre el formulario web de registro público sin necesidad de tener instalada la app en el teléfono.',
-                        buttonText: 'QR Externos',
-                        buttonColor: const Color(0xFF0284C7),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => EventQrDisplayScreen(
-                                event: _currentEvent,
-                                initialMode: EventQrMode.external,
-                              ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _buildQrOptionCard(
+                      context: context,
+                      title: 'QR para Invitados y Público Externo',
+                      badge: 'INVITADOS Y EXTERNOS',
+                      badgeColor: const Color(0xFF0284C7),
+                      icon: Icons.public_rounded,
+                      description: 'Abre el formulario web de registro público sin necesidad de tener instalada la app en el teléfono.',
+                      buttonText: 'QR Externos',
+                      buttonColor: const Color(0xFF0284C7),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => EventQrDisplayScreen(
+                              event: _currentEvent,
+                              initialMode: EventQrMode.external,
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildManagersCard(context, isDark),
-                    ] else ...[
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: cardBorder),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.security_rounded, size: 36, color: Color(0xFF64748B)),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Gestión de QR Restringida',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'La proyección y administración de códigos QR está reservada para el Organizador del evento y Gestores IIAP autorizados.',
-                              style: TextStyle(fontSize: 12.5, color: ThemeService.subtextColor(context)),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _buildManagersCard(context, isDark),
                   ] else ...[
                     // PESTAÑA 2: Participantes
                     Container(

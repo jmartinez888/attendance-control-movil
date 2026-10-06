@@ -3530,6 +3530,73 @@ _buildCircularMuteBell(context),
         : ThemeService.containerColor(context).withValues(alpha: 0.35);
   }
 
+  void _showNotificationFeedback(BuildContext context, bool muted) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final primaryColor = ThemeService.primaryColor(context);
+    final accentColor = muted ? const Color(0xFFEF4444) : primaryColor;
+    final bgCard = muted ? const Color(0xFF241014) : const Color(0xFF131D24);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+                border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1.2),
+              ),
+              child: Icon(
+                muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+                color: accentColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    muted ? 'Notificaciones silenciadas' : 'Notificaciones activadas',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    muted
+                        ? 'No recibirás alertas ni avisos de la app.'
+                        : 'Recibirás avisos de jornada y eventos en tiempo real.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFFE2E8F0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: bgCard,
+        behavior: SnackBarBehavior.floating,
+        elevation: 8,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: accentColor, width: 1.5),
+        ),
+        duration: const Duration(milliseconds: 2400),
+      ),
+    );
+  }
+
   Widget _buildMuteNotificationBell(BuildContext context, {double iconSize = 22, EdgeInsets padding = EdgeInsets.zero}) {
     return ValueListenableBuilder<bool>(
       valueListenable: NotificationService.isMutedNotifier,
@@ -3538,33 +3605,7 @@ _buildCircularMuteBell(context),
           onPressed: () async {
             final muted = await NotificationService.toggleMute();
             if (context.mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(
-                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
-                        color: muted ? const Color(0xFFEF4444) : ThemeService.primaryColor(context),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          muted
-                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
-                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  backgroundColor: _cardBg(context),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              _showNotificationFeedback(context, muted);
             }
           },
           icon: Icon(
@@ -3589,33 +3630,7 @@ _buildCircularMuteBell(context),
           onTap: () async {
             final muted = await NotificationService.toggleMute();
             if (context.mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(
-                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
-                        color: muted ? const Color(0xFFEF4444) : ThemeService.primaryColor(context),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          muted
-                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
-                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  backgroundColor: _cardBg(context),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              _showNotificationFeedback(context, muted);
             }
           },
           borderRadius: BorderRadius.circular(20),
@@ -3666,33 +3681,7 @@ _buildCircularMuteBell(context),
           onTap: () async {
             final muted = await NotificationService.toggleMute();
             if (context.mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(
-                        muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
-                        color: muted ? const Color(0xFFEF4444) : themeColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          muted
-                              ? 'Notificaciones silenciadas. No recibirás alertas de la app.'
-                              : 'Notificaciones activadas. Recibirás avisos de jornada y eventos.',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  backgroundColor: _cardBg(context),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              _showNotificationFeedback(context, muted);
             }
           },
           borderRadius: BorderRadius.circular(15),
