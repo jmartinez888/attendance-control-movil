@@ -10,6 +10,7 @@ import '../../services/theme_service.dart';
 import '../../services/wallpaper_service.dart';
 import '../../services/api_client.dart';
 import '../../widgets/photo_viewer_dialog.dart';
+import '../../widgets/app_cached_avatar.dart';
 import '../wallpaper_screen.dart';
 import '../login_screen.dart';
 import '../notifications_settings_screen.dart';
@@ -1356,7 +1357,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                     radius: 46,
                                     backgroundColor: isDark ? const Color(0xFF16202A) : const Color(0xFFE2E8F0),
                                     backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
-                                        ? NetworkImage(user.photoUrl!)
+                                        ? appCachedImageProvider(user.photoUrl!)
                                         : null,
                                     child: user.photoUrl == null || user.photoUrl!.isEmpty
                                         ? Text(

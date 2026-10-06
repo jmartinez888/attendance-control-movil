@@ -128,6 +128,7 @@ class ApiConfig {
   static String get attendanceGenerateAssignmentQr => '$baseUrl/attendance/generate-assignment-qr';
   static String get attendanceScanAssignmentQr => '$baseUrl/attendance/scan-assignment-qr';
   static String get attendanceFacialRecord => '$baseUrl/attendance/facial-record';
+  static String get attendanceFacialRecognition => '$baseUrl/attendance/facial-recognition';
 
   // Rutas del Servicio Biometrico Facial (Python - InsightFace & OpenCV)
   static String get facialScanWebcam => '$facialServiceBaseUrl/api/scan/webcam';

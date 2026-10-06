@@ -10,7 +10,7 @@ import 'tabs/profile_tab.dart';
 import '../services/theme_service.dart';
 import '../services/notification_service.dart';
 import '../utils/responsive.dart';
-import 'login_screen.dart';
+import '../widgets/app_cached_avatar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,37 +50,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _validateSessionInBackground() async {
     try {
-      final isValid = await AuthService.validateSessionInBackground();
-      if (!isValid && mounted) {
-        // Solo si el backend rechazó la sesión explícitamente (401 definitivo) y no hay re-login:
-        _syncTimer?.cancel();
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.lock_clock_outlined, color: Colors.white, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Tu sesión ha expirado o tus credenciales cambiaron. Por favor ingresa de nuevo.',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
+      // Revalidación y actualización silenciosa de perfil en segundo plano
+      await AuthService.validateSessionInBackground();
+      // NO expulsamos al usuario al Login al abrir la app.
+      // La persistencia de sesión se mantiene activa de forma permanente estilo redes sociales.
     } catch (_) {
-      // Ignorar errores transitorios de red para no botar al usuario offline
+      // Ignorar errores transitorios de red para mantener la sesión offline
     }
   }
 
@@ -327,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   backgroundColor: ThemeService.primaryColor(context),
                                   backgroundImage: (currentUser?.photoUrl != null &&
                                           currentUser!.photoUrl!.isNotEmpty)
-                                      ? NetworkImage(currentUser.photoUrl!)
+                                      ? appCachedImageProvider(currentUser.photoUrl!)
                                       : null,
                                   child: (currentUser?.photoUrl == null ||
                                           currentUser!.photoUrl!.isEmpty)

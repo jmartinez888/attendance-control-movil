@@ -11,6 +11,7 @@ import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import 'event_detail_screen.dart';
 import 'event_qr_display_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CreateEventScreen extends StatefulWidget {
   final EventModel? eventToEdit;
@@ -1626,10 +1627,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                         fit: BoxFit.cover,
                                       )
                                     else
-                                      Image.network(
-                                        _eventImageUrl!,
+                                      CachedNetworkImage(
+                                        imageUrl: _eventImageUrl!,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => const Center(
+                                        errorWidget: (_, __, ___) => const Center(
                                           child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
                                         ),
                                       ),

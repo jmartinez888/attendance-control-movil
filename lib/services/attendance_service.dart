@@ -349,4 +349,22 @@ class AttendanceService {
     final response = await ApiClient.post(ApiConfig.attendanceFacialRecord, body: body);
     return response as Map<String, dynamic>;
   }
+
+  /// 12. Procesar frame para reconocimiento facial continuo en backend NestJS
+  static Future<Map<String, dynamic>> processFacialRecognition({
+    required String base64Image,
+    double? latitude,
+    double? longitude,
+    String? deviceId,
+  }) async {
+    final body = <String, dynamic>{
+      'image_base64': base64Image,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      'device_id': deviceId ?? 'flutter-facial-app',
+    };
+
+    final response = await ApiClient.post(ApiConfig.attendanceFacialRecognition, body: body);
+    return response as Map<String, dynamic>;
+  }
 }

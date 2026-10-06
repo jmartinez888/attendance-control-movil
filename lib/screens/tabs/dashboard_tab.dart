@@ -20,7 +20,10 @@ import '../events/event_qr_display_screen.dart';
 import '../events/events_list_screen.dart';
 import '../qr/qr_display_screen.dart';
 import '../qr/qr_scanner_screen.dart';
+import '../attendance/facial_attendance_screen.dart';
+import '../../config/api_config.dart';
 import '../../widgets/photo_viewer_dialog.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:convert';
 
 class DashboardTab extends StatefulWidget {
@@ -57,8 +60,8 @@ class _DashboardTabState extends State<DashboardTab> {
 
   void _startRealtimeSync() {
     _realtimeTimer?.cancel();
-    // Sincronización en tiempo real continua cada 4 segundos
-    _realtimeTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+    // Sincronización en tiempo real continua cada 2.5 segundos para eventos y asistencias
+    _realtimeTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) async {
       if (!mounted) return;
       await _fetchAttendanceData();
       await EventService.getEvents();
@@ -218,6 +221,23 @@ class _DashboardTabState extends State<DashboardTab> {
     final res = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const QrScannerScreen(target: ScanTarget.attendance),
+      ),
+    );
+    if (res == true && mounted) {
+      await _fetchAttendanceData();
+      await EventService.getEvents();
+    }
+  }
+
+  Future<void> _handleReconocimientoFacial(BuildContext ctx) async {
+    final token = await StorageService.getToken();
+    if (!ctx.mounted) return;
+    final res = await Navigator.of(ctx).push(
+      MaterialPageRoute(
+        builder: (_) => FacialAttendanceScreen(
+          jwtToken: token ?? '',
+          backendBaseUrl: ApiConfig.baseUrl,
+        ),
       ),
     );
     if (res == true && mounted) {
@@ -566,10 +586,14 @@ class _DashboardTabState extends State<DashboardTab> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(15),
                             child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                                ? Image.network(
-                                    user.photoUrl!,
+                                ? CachedNetworkImage(
+                                    imageUrl: user.photoUrl!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Center(
+                                    fadeInDuration: const Duration(milliseconds: 150),
+                                    placeholder: (_, __) => const Center(
+                                      child: Icon(Icons.access_time_filled_rounded, color: Color(0xFF34D399), size: 28),
+                                    ),
+                                    errorWidget: (_, __, ___) => const Center(
                                       child: Icon(Icons.access_time_filled_rounded, color: Color(0xFF34D399), size: 28),
                                     ),
                                   )
@@ -1060,6 +1084,109 @@ class _DashboardTabState extends State<DashboardTab> {
           ),
         ),
 
+        const SizedBox(height: 10),
+
+        // Tarjeta Reconocimiento Facial [BIOMÉTRICO]
+        InkWell(
+          onTap: () => _handleReconocimientoFacial(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardBg(context),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F2E23),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF16533D)),
+                  ),
+                  child: const Icon(
+                    Icons.face_retouching_natural_rounded,
+                    color: Color(0xFF34D399),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Control Biométrico Facial',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C3827),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: const Color(0xFF156947)),
+                            ),
+                            child: const Text(
+                              'BIOMÉTRICO',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Escaneo continuo con cámara e identificación con IA...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF8FA3AF),
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 5),
+                      const Row(
+                        children: [
+                          Icon(Icons.circle, color: Color(0xFF34D399), size: 5.5),
+                          SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'Reconocimiento facial automático',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF34D399),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF64748B), size: 22),
+              ],
+            ),
+          ),
+        ),
+
         const SizedBox(height: 22),
 
         // 5. Eventos Institucionales - Ver Todos
@@ -1176,12 +1303,15 @@ class _DashboardTabState extends State<DashboardTab> {
     final isBase64 = hasCustomImage && event.imageUrl!.startsWith('data:image');
 
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => EventDetailScreen(event: event),
           ),
         );
+        if (mounted) {
+          await EventService.getEvents(forceRefresh: true);
+        }
       },
       borderRadius: BorderRadius.circular(20),
       child: Container(
@@ -1210,16 +1340,18 @@ class _DashboardTabState extends State<DashboardTab> {
                   errorBuilder: (_, __, ___) => _buildFallbackAuditorium(),
                 )
               else if (hasCustomImage)
-                Image.network(
-                  event.imageUrl!,
+                CachedNetworkImage(
+                  imageUrl: event.imageUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildFallbackAuditorium(),
+                  placeholder: (_, __) => _buildFallbackAuditorium(),
+                  errorWidget: (_, __, ___) => _buildFallbackAuditorium(),
                 )
               else
-                Image.network(
-                  defaultAuditoriumPhoto,
+                CachedNetworkImage(
+                  imageUrl: defaultAuditoriumPhoto,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildFallbackAuditorium(),
+                  placeholder: (_, __) => _buildFallbackAuditorium(),
+                  errorWidget: (_, __, ___) => _buildFallbackAuditorium(),
                 ),
 
               // 2. Gradiente Oscuro Superpuesto para máxima legibilidad
@@ -2076,6 +2208,109 @@ class _DashboardTabState extends State<DashboardTab> {
           ),
         ),
 
+        const SizedBox(height: 10),
+
+        // Tarjeta Reconocimiento Facial [BIOMÉTRICO]
+        InkWell(
+          onTap: () => _handleReconocimientoFacial(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardBg(context),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F2E23),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF16533D)),
+                  ),
+                  child: const Icon(
+                    Icons.face_retouching_natural_rounded,
+                    color: Color(0xFF34D399),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Control Biométrico Facial',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C3827),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: const Color(0xFF156947)),
+                            ),
+                            child: const Text(
+                              'BIOMÉTRICO',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Escaneo facial continuo y validación biométrica...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF8FA3AF),
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 5),
+                      const Row(
+                        children: [
+                          Icon(Icons.circle, color: Color(0xFF34D399), size: 5.5),
+                          SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'Reconocimiento facial automático',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF34D399),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF64748B), size: 22),
+              ],
+            ),
+          ),
+        ),
+
         const SizedBox(height: 22),
 
         // 5. Eventos Asignados [ 4 en agenda ] - Ver Todos
@@ -2135,12 +2370,15 @@ class _DashboardTabState extends State<DashboardTab> {
         // Tarjeta Evento Asignado con barra verde izquierda
         if (featuredEvent != null) ...[
           InkWell(
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => EventDetailScreen(event: featuredEvent),
                 ),
               );
+              if (mounted) {
+                await EventService.getEvents(forceRefresh: true);
+              }
             },
             borderRadius: BorderRadius.circular(20),
             child: Container(
@@ -2528,10 +2766,16 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
             child: ClipOval(
               child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                  ? Image.network(
-                      user.photoUrl!,
+                  ? CachedNetworkImage(
+                      imageUrl: user.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      placeholder: (_, __) => const Icon(
+                        Icons.person,
+                        color: Color(0xFF0F172A),
+                        size: 21,
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
                         Icons.person,
                         color: Color(0xFF0F172A),
                         size: 21,
@@ -3258,6 +3502,82 @@ _buildCircularMuteBell(context),
             ),
           ),
         ),
+        const SizedBox(height: 10),
+        // Tarjeta Reconocimiento Facial [BIOMÉTRICO]
+        InkWell(
+          onTap: () => _handleReconocimientoFacial(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardBg(context),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _cardBorder(context), width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F2E23),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF16533D)),
+                  ),
+                  child: const Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF34D399), size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Control Biométrico Facial',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C3827),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: const Color(0xFF156947)),
+                            ),
+                            child: const Text('BIOMÉTRICO', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF34D399))),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Escaneo facial continuo y registro automático de entrada o salida',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF8FA3AF), height: 1.3),
+                      ),
+                      const SizedBox(height: 5),
+                      const Row(
+                        children: [
+                          Icon(Icons.circle, color: Color(0xFF34D399), size: 5.5),
+                          SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'Reconocimiento facial automático',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF34D399)),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF64748B), size: 22),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -3311,10 +3631,13 @@ _buildCircularMuteBell(context),
         const SizedBox(height: 10),
         if (featuredEvent != null) ...[
           InkWell(
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => EventDetailScreen(event: featuredEvent)),
               );
+              if (mounted) {
+                await EventService.getEvents(forceRefresh: true);
+              }
             },
             borderRadius: BorderRadius.circular(20),
             child: Container(
@@ -3796,10 +4119,12 @@ _buildCircularMuteBell(context),
             ),
             child: ClipOval(
               child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                  ? Image.network(
-                      user.photoUrl!,
+                  ? CachedNetworkImage(
+                      imageUrl: user.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Color(0xFF0F172A), size: 21),
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      placeholder: (_, __) => const Icon(Icons.person, color: Color(0xFF0F172A), size: 21),
+                      errorWidget: (_, __, ___) => const Icon(Icons.person, color: Color(0xFF0F172A), size: 21),
                     )
                   : const Icon(Icons.person, color: Color(0xFF0F172A), size: 21),
             ),
@@ -3850,10 +4175,12 @@ _buildCircularMuteBell(context),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(35),
                     child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                        ? Image.network(
-                            user.photoUrl!,
+                        ? CachedNetworkImage(
+                            imageUrl: user.photoUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildDefaultOvalAvatar(user),
+                            fadeInDuration: const Duration(milliseconds: 150),
+                            placeholder: (_, __) => _buildDefaultOvalAvatar(user),
+                            errorWidget: (_, __, ___) => _buildDefaultOvalAvatar(user),
                           )
                         : _buildDefaultOvalAvatar(user),
                   ),
@@ -4277,6 +4604,28 @@ _buildCircularMuteBell(context),
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: themeColor.withValues(alpha: 0.6), width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  onPressed: () => _handleReconocimientoFacial(context),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Icon(Icons.face_retouching_natural_rounded, size: 20, color: themeColor),
+                      const Text('Control Biométrico Facial', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Colors.white)),
+                      Icon(Icons.arrow_forward_rounded, size: 20, color: themeColor),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -4329,10 +4678,13 @@ _buildCircularMuteBell(context),
         const SizedBox(height: 10),
         if (featuredEvent != null) ...[
           InkWell(
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => EventDetailScreen(event: featuredEvent)),
               );
+              if (mounted) {
+                await EventService.getEvents(forceRefresh: true);
+              }
             },
             borderRadius: BorderRadius.circular(22),
             child: Container(
@@ -4427,13 +4779,22 @@ _buildCircularMuteBell(context),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          _buildAttendeeAvatars(featuredEvent.attendees),
-                          const SizedBox(width: 8),
-                          Text('${featuredEvent.attendees.length} registrados oficialmente', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFCBD5E1))),
-                        ],
+                      Expanded(
+                        child: Row(
+                          children: [
+                            _buildAttendeeAvatars(featuredEvent.attendees),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${featuredEvent.attendees.length} registrados oficialmente',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFCBD5E1)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -4454,8 +4815,19 @@ _buildCircularMuteBell(context),
   }
 
   // ===========================================================================
-  // AVATARES SOLAPADOS
+  // AVATARES SOLAPADOS DE PARTICIPANTES (SINCRONIZADOS EN TIEMPO REAL)
   // ===========================================================================
+
+  static const List<Map<String, Color>> _avatarColorThemes = [
+    {'bg': Color(0xFF5EEAD4), 'text': Color(0xFF0F172A)}, // Cyan original
+    {'bg': Color(0xFF6EE7B7), 'text': Color(0xFF0F172A)}, // Menta original
+    {'bg': Color(0xFF93C5FD), 'text': Color(0xFF0F172A)}, // Celeste
+    {'bg': Color(0xFFFDE68A), 'text': Color(0xFF0F172A)}, // Ámbar
+    {'bg': Color(0xFFC4B5FD), 'text': Color(0xFF0F172A)}, // Violeta
+    {'bg': Color(0xFFFCA5A5), 'text': Color(0xFF0F172A)}, // Coral
+    {'bg': Color(0xFFA7F3D0), 'text': Color(0xFF0F172A)}, // Esmeralda
+    {'bg': Color(0xFFFED7AA), 'text': Color(0xFF0F172A)}, // Naranja
+  ];
 
   Widget _buildAttendeeAvatars(List<EventAttendeeModel> attendees) {
     if (attendees.isEmpty) {
@@ -4471,64 +4843,118 @@ _buildCircularMuteBell(context),
       );
     }
 
-    final displayList = attendees.take(2).toList();
+    // Si hay 4 o menos participantes, se muestran todos individualmente de acuerdo al evento.
+    // Si hay más de 4 participantes, se muestran los primeros 3 y el badge (+N) con los restantes.
+    final int maxAvatarsToShow = attendees.length <= 4 ? attendees.length : 3;
+    final displayList = attendees.take(maxAvatarsToShow).toList();
     final remaining = attendees.length - displayList.length;
 
-    final colors = [
-      const Color(0xFF5EEAD4),
-      const Color(0xFF6EE7B7),
-    ];
+    const double itemOffset = 15.0;
+    const double avatarSize = 22.0;
+    final int totalItems = displayList.length + (remaining > 0 ? 1 : 0);
+    final double totalWidth = totalItems > 0 ? (totalItems - 1) * itemOffset + avatarSize : avatarSize;
 
     return SizedBox(
       height: 24,
-      width: (displayList.length * 16.0) + (remaining > 0 ? 24.0 : 8.0),
+      width: totalWidth,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           for (int i = 0; i < displayList.length; i++)
             Positioned(
-              left: i * 14.0,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: colors[i % colors.length],
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _cardBg(context), width: 2),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  _getInitials(displayList[i].userName),
-                  style: const TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ),
+              left: i * itemOffset,
+              child: _buildSingleAttendeeAvatar(displayList[i], i),
             ),
           if (remaining > 0)
             Positioned(
-              left: displayList.length * 14.0,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF263C45),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _cardBg(context), width: 2),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '+$remaining',
-                  style: const TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+              left: displayList.length * itemOffset,
+              child: Tooltip(
+                message: '+$remaining participantes registrados más',
+                child: Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF263C45),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _cardBg(context), width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '+$remaining',
+                    style: const TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSingleAttendeeAvatar(EventAttendeeModel attendee, int index) {
+    final theme = _avatarColorThemes[index % _avatarColorThemes.length];
+    final initials = _getInitials(attendee.userName);
+
+    // Obtener foto si existe en el modelo o si es el usuario conectado
+    String? photo = attendee.photoUrl;
+    if ((photo == null || photo.isEmpty) && attendee.userId.isNotEmpty) {
+      final me = StorageService.currentUser;
+      if (me != null && me.id == attendee.userId && me.photoUrl != null && me.photoUrl!.isNotEmpty) {
+        photo = me.photoUrl;
+      }
+    }
+
+    return Tooltip(
+      message: attendee.userName + (attendee.userPosition != null && attendee.userPosition!.isNotEmpty ? ' (${attendee.userPosition})' : ''),
+      child: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: theme['bg'],
+          shape: BoxShape.circle,
+          border: Border.all(color: _cardBg(context), width: 2),
+        ),
+        alignment: Alignment.center,
+        child: (photo != null && photo.isNotEmpty)
+            ? ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: photo,
+                  width: 22,
+                  height: 22,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 60,
+                  memCacheHeight: 60,
+                  fadeInDuration: const Duration(milliseconds: 100),
+                  placeholder: (_, __) => Text(
+                    initials,
+                    style: TextStyle(
+                      fontSize: initials.length > 1 ? 7.5 : 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: theme['text'],
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Text(
+                    initials,
+                    style: TextStyle(
+                      fontSize: initials.length > 1 ? 7.5 : 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: theme['text'],
+                    ),
+                  ),
+                ),
+              )
+            : Text(
+                initials,
+                style: TextStyle(
+                  fontSize: initials.length > 1 ? 7.5 : 9.5,
+                  fontWeight: FontWeight.w900,
+                  color: theme['text'],
+                ),
+              ),
       ),
     );
   }

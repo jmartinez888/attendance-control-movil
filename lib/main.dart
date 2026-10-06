@@ -9,7 +9,8 @@ import 'services/attendance_service.dart';
 import 'services/schedule_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/notification_service.dart';
-import 'screens/splash_gate_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,19 +25,21 @@ void main() async {
     ),
   );
 
-  // Inicialización paralela y ultra-rápida de servicios esenciales (0 ms de espera)
+  // Inicialización paralela inmediata de almacenamiento y configuración (0 ms de espera)
   await Future.wait([
     ThemeService.init(),
     WallpaperService.init(),
     ApiConfig.init(),
     StorageService.init(),
     AttendanceService.init(),
-    ConnectivityService.init(),
   ]);
+
+  // Iniciar conectividad y notificaciones en segundo plano sin frenar el primer renderizado de la app
+  ConnectivityService.init();
 
   runApp(const MyApp());
 
-  // Servicios secundarios en segundo plano sin bloquear el primer renderizado visual
+  // Servicios secundarios en segundo plano
   ScheduleService.init();
   NotificationService.init();
 }
@@ -233,7 +236,10 @@ class MyApp extends StatelessWidget {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          home: const SplashGateScreen(),
+          home: (StorageService.currentUser != null ||
+                  (StorageService.tokenSync != null && StorageService.tokenSync!.isNotEmpty))
+              ? const HomeScreen()
+              : const LoginScreen(),
         );
       },
     );

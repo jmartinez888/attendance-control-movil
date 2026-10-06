@@ -131,6 +131,7 @@ class EventAttendeeModel {
   final DateTime registeredAt;
   final String? notes;
   final String? shift;
+  final String? photoUrl;
 
   EventAttendeeModel({
     required this.id,
@@ -149,6 +150,7 @@ class EventAttendeeModel {
     required this.registeredAt,
     this.notes,
     this.shift,
+    this.photoUrl,
   });
 
   factory EventAttendeeModel.fromJson(Map<String, dynamic> json) {
@@ -173,6 +175,10 @@ class EventAttendeeModel {
               : DateTime.now()),
       notes: json['notes']?.toString(),
       shift: json['shift']?.toString(),
+      photoUrl: json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['user_photo']?.toString() ??
+          json['avatar_url']?.toString(),
     );
   }
 
@@ -194,6 +200,7 @@ class EventAttendeeModel {
       'registered_at': registeredAt.toIso8601String(),
       'notes': notes,
       'shift': shift,
+      'photo_url': photoUrl,
     };
   }
 }
@@ -270,6 +277,7 @@ class EventModel {
           .whereType<Map<String, dynamic>>()
           .map((item) => EventAttendeeModel.fromJson(item))
           .toList();
+      attendeesList.sort((a, b) => a.registeredAt.compareTo(b.registeredAt));
     }
 
     final start = json['start_date'] != null

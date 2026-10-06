@@ -150,7 +150,7 @@ class AuthService {
         if (reauthenticated) {
           return true;
         }
-        await StorageService.clearSession();
+        // Preservar la sesión localmente estilo redes sociales (no cerrar sesión automáticamente)
         return false;
       }
 

@@ -17,6 +17,8 @@ import 'create_event_screen.dart';
 import 'event_certificate_modal.dart';
 import 'event_qr_display_screen.dart';
 import 'manual_attendee_modal.dart';
+import '../../widgets/app_cached_avatar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final EventModel event;
@@ -1025,17 +1027,37 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
           child: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: const Color(0xFF34D399).withValues(alpha: 0.15),
-                radius: 18,
-                child: Text(
-                  attendee.userName.isNotEmpty ? attendee.userName[0].toUpperCase() : 'P',
-                  style: const TextStyle(
-                    color: Color(0xFF34D399),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
+              Builder(
+                builder: (context) {
+                  String? photo = attendee.photoUrl;
+                  if ((photo == null || photo.isEmpty) && attendee.userId.isNotEmpty) {
+                    final me = StorageService.currentUser;
+                    if (me != null && me.id == attendee.userId && me.photoUrl != null && me.photoUrl!.isNotEmpty) {
+                      photo = me.photoUrl;
+                    }
+                  }
+                  if (photo != null && photo.isNotEmpty) {
+                    return CircleAvatar(
+                      radius: 18,
+                      backgroundColor: const Color(0xFF34D399).withValues(alpha: 0.15),
+                      backgroundImage: appCachedImageProvider(photo),
+                      onBackgroundImageError: (_, __) {},
+                      child: null,
+                    );
+                  }
+                  return CircleAvatar(
+                    backgroundColor: const Color(0xFF34D399).withValues(alpha: 0.15),
+                    radius: 18,
+                    child: Text(
+                      attendee.userName.isNotEmpty ? attendee.userName[0].toUpperCase() : 'P',
+                      style: const TextStyle(
+                        color: Color(0xFF34D399),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1293,10 +1315,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 base64Decode(_currentEvent.imageUrl!.split(',').last),
                                 fit: BoxFit.cover,
                               )
-                            : Image.network(
-                                _currentEvent.imageUrl!,
+                            : CachedNetworkImage(
+                                imageUrl: _currentEvent.imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Center(
+                                placeholder: (_, __) => const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                errorWidget: (_, __, ___) => const Center(
                                   child: Icon(Icons.apartment_rounded, color: Color(0xFF10B981), size: 48),
                                 ),
                               ),
