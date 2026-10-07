@@ -1457,7 +1457,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             : ThemeService.cardBg(context);
         final cardBorder = ThemeService.cardBorder(context);
 
-        return Scaffold(
+        return PopScope(
+          canPop: _currentStep == 0,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            if (_currentStep > 0) {
+              setState(() => _currentStep--);
+            }
+          },
+          child: Scaffold(
           backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -2771,7 +2779,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
       },
     );
   }

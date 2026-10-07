@@ -149,6 +149,15 @@ class MyApp extends StatelessWidget {
                 statusBarBrightness: hasWallpaper ? Brightness.dark : Brightness.light,
               ),
             ),
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+              },
+            ),
             useMaterial3: true,
           ),
           darkTheme: ThemeData(
@@ -226,6 +235,15 @@ class MyApp extends StatelessWidget {
                 statusBarIconBrightness: Brightness.light,
                 statusBarBrightness: Brightness.dark,
               ),
+            ),
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+              },
             ),
             useMaterial3: true,
           ),

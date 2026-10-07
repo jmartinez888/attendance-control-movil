@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
@@ -23,6 +24,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final Set<int> _activatedTabs = {0};
+  final List<int> _tabHistory = [0];
+  DateTime? _lastBackPressTime;
   Timer? _syncTimer;
   bool _isSyncing = false;
 
@@ -31,7 +34,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() {
       _currentIndex = index;
       _activatedTabs.add(index);
+      _tabHistory.remove(index);
+      _tabHistory.add(index);
     });
+  }
+
+  bool _handleBackPress() {
+    // 1. Si hay pestañas previas navegadas, volver a la anterior de forma natural
+    if (_tabHistory.length > 1) {
+      setState(() {
+        _tabHistory.removeLast();
+        _currentIndex = _tabHistory.isNotEmpty ? _tabHistory.last : 0;
+      });
+      return false; // Consumido exitosamente dentro de las pestañas
+    } else if (_currentIndex != 0) {
+      setState(() {
+        _currentIndex = 0;
+        _tabHistory.clear();
+        _tabHistory.add(0);
+      });
+      return false; // Regresado a la vista principal Inicio
+    }
+
+    // 2. Si ya estamos en Inicio, evitar cierres accidentales requiriendo confirmación
+    final now = DateTime.now();
+    if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      AppToast.show(
+        context,
+        title: 'Presiona nuevamente para salir',
+        subtitle: 'Usa el botón o gesto atrás otra vez para cerrar la aplicación',
+        icon: Icons.exit_to_app_rounded,
+        accentColor: const Color(0xFF10B981),
+      );
+      return false; // Esperando confirmación en 2 segundos
+    }
+
+    return true; // Confirmado, permitir salida limpia
   }
 
   @override
@@ -129,7 +168,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserModel?>(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final shouldExit = _handleBackPress();
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: ValueListenableBuilder<UserModel?>(
       valueListenable: StorageService.currentUserNotifier,
       builder: (context, user, _) {
         final currentUser = user ?? StorageService.currentUser;
@@ -328,6 +376,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         );
       },
+      ),
     );
   }
 }
