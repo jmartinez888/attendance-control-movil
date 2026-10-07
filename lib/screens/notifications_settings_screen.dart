@@ -7,6 +7,7 @@ import '../services/storage_service.dart';
 import '../models/user_model.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/app_cached_avatar.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -656,33 +657,13 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
               child: ValueListenableBuilder<UserModel?>(
                 valueListenable: StorageService.currentUserNotifier,
                 builder: (context, user, _) {
-                  return Container(
-                    width: 34,
-                    height: 34,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2DD4BF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: user?.photoUrl != null && user!.photoUrl!.isNotEmpty
-                          ? ClipOval(
-                              child: Image.network(
-                                user.photoUrl!,
-                                fit: BoxFit.cover,
-                                width: 34,
-                                height: 34,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.person_rounded,
-                                  color: Color(0xFF0F172A),
-                                  size: 20,
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.person_rounded,
-                              color: Color(0xFF0F172A),
-                              size: 20,
-                            ),
+                  return AppCachedAvatar(
+                    imageUrl: user?.photoUrl,
+                    name: user?.fullName ?? 'Usuario',
+                    size: 34,
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                      width: 1.5,
                     ),
                   );
                 },
