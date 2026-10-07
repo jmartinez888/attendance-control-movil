@@ -377,8 +377,11 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Fila superior: Tipo + Estado
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -397,6 +400,7 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
                   ),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     if (event.requiresAttendance) ...[
                       Container(
@@ -474,27 +478,39 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
             const SizedBox(height: 8),
 
             // Fecha y Horario
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(Icons.calendar_today_rounded, size: 13, color: ThemeService.primaryColor(context)),
-                const SizedBox(width: 5),
-                Text(
-                  _formatDate(event.startDate),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_rounded, size: 13, color: ThemeService.primaryColor(context)),
+                    const SizedBox(width: 5),
+                    Text(
+                      _formatDate(event.startDate),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Icon(Icons.access_time_rounded, size: 13, color: ThemeService.subtextColor(context)),
-                const SizedBox(width: 4),
-                Text(
-                  '${_formatTime(event.startDate)} - ${_formatTime(event.endDate)}',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: ThemeService.subtextColor(context),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_rounded, size: 13, color: ThemeService.subtextColor(context)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_formatTime(event.startDate)} - ${_formatTime(event.endDate)}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: ThemeService.subtextColor(context),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

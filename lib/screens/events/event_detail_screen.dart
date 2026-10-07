@@ -1071,21 +1071,21 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Flexible(
-                          child: Text(
-                            attendee.userName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          attendee.userName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         if (attendee.isExternal) ...[
-                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
@@ -1103,7 +1103,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           ),
                         ],
                         if (attendee.shift != null && attendee.shift!.isNotEmpty) ...[
-                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
@@ -1337,7 +1336,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ],
 
                   // 1. FILA DE BADGES SUPERIORES
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       // Badge de Tipo de Evento
                       Container(
@@ -1370,7 +1372,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
 
                       // Badge de Estado del Evento
                       Container(
@@ -1388,7 +1389,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           ),
                         ),
                       ),
-                      const Spacer(),
 
                       // Badge Oficial IIAP
                       Container(
@@ -1432,33 +1432,44 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   const SizedBox(height: 8),
 
                   // 3. SUBTÍTULO (Fecha de Inicio • Asistentes)
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 14, color: mintGreen),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatDateTime(_currentEvent.startDate),
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: mintGreen,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.calendar_today_outlined, size: 14, color: mintGreen),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatDateTime(_currentEvent.startDate),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: mintGreen,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
                       const Text(
                         '•',
                         style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.people_outline_rounded, size: 16, color: mintGreen),
-                      const SizedBox(width: 5),
-                      Text(
-                        '${_currentEvent.attendees.length} Asistentes',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: mintGreen,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.people_outline_rounded, size: 16, color: mintGreen),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${_currentEvent.attendees.length} Asistentes',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: mintGreen,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1697,54 +1708,115 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: mintGreen.withValues(alpha: 0.5)),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: mintGreen.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.verified_rounded, color: mintGreen, size: 24),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isCompact = constraints.maxWidth < 340;
+                            if (isCompact) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Text(
-                                    '¡Tu Asistencia está Confirmada!',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: mintGreen,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: mintGreen.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(Icons.verified_rounded, color: mintGreen, size: 24),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              '¡Tu Asistencia está Confirmada!',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                                color: mintGreen,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'Descarga tu constancia oficial en PDF.',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    'Descarga tu constancia oficial en formato PDF.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: mintGreen,
+                                      foregroundColor: darkGreen,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                     ),
+                                    onPressed: _handleViewCertificate,
+                                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: darkGreen),
+                                    label: const Text('Descargar Constancia Oficial', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
                                   ),
                                 ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: mintGreen,
-                                foregroundColor: darkGreen,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                              onPressed: _handleViewCertificate,
-                              icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: darkGreen),
-                              label: const Text('Constancia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
-                            ),
-                          ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: mintGreen.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.verified_rounded, color: mintGreen, size: 24),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        '¡Tu Asistencia está Confirmada!',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: mintGreen,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Descarga tu constancia oficial en formato PDF.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: mintGreen,
+                                    foregroundColor: darkGreen,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  ),
+                                  onPressed: _handleViewCertificate,
+                                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: darkGreen),
+                                  label: const Text('Constancia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],

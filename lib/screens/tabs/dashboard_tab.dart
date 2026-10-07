@@ -510,8 +510,11 @@ class _DashboardTabState extends State<DashboardTab> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Fila Superior de Badges
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
                   // Badge Ámbar/Dorado: [ 🛡️ ADMIN EVENTO ]
                   Container(
@@ -560,7 +563,7 @@ class _DashboardTabState extends State<DashboardTab> {
                               color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                               size: 6.5,
                             ),
-                            const SizedBox(width: 5),
+                            SizedBox(width: 5),
                             Text(
                               isOnline ? 'En línea' : 'Desconectado',
                               style: TextStyle(
@@ -742,9 +745,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      enCursoCount > 0 ? '$enCursoCount en curso' : '2 en curso',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        enCursoCount > 0 ? '$enCursoCount en curso' : '2 en curso',
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -796,9 +804,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '$displayRegistros activos',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$displayRegistros activos',
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -839,9 +852,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'SHA-256 OK',
-                      style: TextStyle(fontSize: 9.5, color: Color(0xFFF59E0B), fontWeight: FontWeight.w600),
+                    const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'SHA-256 OK',
+                        style: TextStyle(fontSize: 9.5, color: Color(0xFFF59E0B), fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -1393,7 +1411,9 @@ class _DashboardTabState extends State<DashboardTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Fila Superior de Badges
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         // [ 👥 REUNIÓN UO ]
                         Container(
@@ -1420,7 +1440,6 @@ class _DashboardTabState extends State<DashboardTab> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 6),
                         // [ ● Próximo ] o [ ● En curso ]
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
@@ -1495,20 +1514,26 @@ class _DashboardTabState extends State<DashboardTab> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                _buildAttendeeAvatars(event.attendees),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${event.attendees.length} registrados',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFFE2E8F0),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  _buildAttendeeAvatars(event.attendees),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      '${event.attendees.length} registrados',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1629,8 +1654,11 @@ class _DashboardTabState extends State<DashboardTab> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Fila Superior de Badges
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1870,9 +1898,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      enCursoCount > 0 ? '$enCursoCount en curso' : '2 en curso',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        enCursoCount > 0 ? '$enCursoCount en curso' : '2 en curso',
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -1924,9 +1957,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '$displayRegistros registros',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$displayRegistros registros',
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -1967,9 +2005,14 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Validados',
-                      style: TextStyle(fontSize: 9.5, color: Color(0xFFFBBF24), fontWeight: FontWeight.w600),
+                    const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Validados',
+                        style: TextStyle(fontSize: 9.5, color: Color(0xFFFBBF24), fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                      ),
                     ),
                   ],
                 ),
@@ -2330,13 +2373,16 @@ class _DashboardTabState extends State<DashboardTab> {
         // 5. Eventos Asignados [ 4 en agenda ] - Ver Todos
         Row(
           children: [
-            const Text(
-              'Eventos Asignados',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 0.2,
+            const Flexible(
+              child: Text(
+                'Eventos Asignados',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
@@ -2420,10 +2466,14 @@ class _DashboardTabState extends State<DashboardTab> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Badges: [ 👥 REUNIÓN UO ]  [ ● Próximo ]  -  Hoy • 11:30 AM
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 6,
+                              runSpacing: 4,
                               children: [
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -2685,75 +2735,79 @@ class _DashboardTabState extends State<DashboardTab> {
           child: const Icon(Icons.verified_rounded, color: Color(0xFF34D399), size: 22),
         ),
         const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'IIAP OFICIAL',
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 2,
+                children: [
+                  const Text(
+                    'IIAP OFICIAL',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ValueListenableBuilder<bool>(
-                  valueListenable: ConnectivityService.isOnlineNotifier,
-                  builder: (context, isOnline, _) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                      decoration: BoxDecoration(
-                        color: isOnline ? const Color(0xFF0D2821) : const Color(0xFF2E1515),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isOnline ? const Color(0xFF165942) : const Color(0xFF5A2020),
-                          width: 1,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: ConnectivityService.isOnlineNotifier,
+                    builder: (context, isOnline, _) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: isOnline ? const Color(0xFF0D2821) : const Color(0xFF2E1515),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isOnline ? const Color(0xFF165942) : const Color(0xFF5A2020),
+                            width: 1,
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                              shape: BoxShape.circle,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isOnline ? 'EN LÍNEA' : 'OFFLINE',
-                            style: TextStyle(
-                              color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.bold,
+                            const SizedBox(width: 4),
+                            Text(
+                              isOnline ? 'EN LÍNEA' : 'OFFLINE',
+                              style: TextStyle(
+                                color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              'Inicio',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF8FA3AF),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              const Text(
+                'Inicio',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF8FA3AF),
+                ),
+              ),
+            ],
+          ),
         ),
 
-        const Spacer(),
+        const SizedBox(width: 8),
 
         // Campana interactiva con modo silencio
         _buildCircularMuteBell(context),
@@ -2876,17 +2930,21 @@ class _DashboardTabState extends State<DashboardTab> {
       children: [
         Icon(Icons.play_circle_fill_rounded, color: Color(0xFF10B981), size: 14),
         SizedBox(width: 6),
-        Text(
-          'SISTEMA BIOMÉTRICO IIAP',
-          style: TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
+        Flexible(
+          child: Text(
+            'SISTEMA BIOMÉTRICO IIAP',
+            style: TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         Spacer(),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.circle, color: Color(0xFF10B981), size: 6.5),
             SizedBox(width: 5),
@@ -2930,53 +2988,57 @@ class _DashboardTabState extends State<DashboardTab> {
           child: const LeafLogo(size: 22),
         ),
         const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'IIAP',
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F3224),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFF176044)),
-                  ),
-                  child: const Text(
-                    'OFICIAL',
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'IIAP',
                     style: TextStyle(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF10B981),
-                      letterSpacing: 0.8,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              sede,
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF8FA3AF),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F3224),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF176044)),
+                    ),
+                    child: const Text(
+                      'OFICIAL',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF10B981),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                sede,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF8FA3AF),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         ValueListenableBuilder<bool>(
           valueListenable: ConnectivityService.isOnlineNotifier,
           builder: (context, isOnline, _) {
@@ -3045,8 +3107,11 @@ _buildCircularMuteBell(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -3213,15 +3278,19 @@ _buildCircularMuteBell(context),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              _currentShiftCuadrillaTitle,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFCBD5E1),
-                letterSpacing: 0.6,
+            Flexible(
+              child: Text(
+                _currentShiftCuadrillaTitle,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFCBD5E1),
+                  letterSpacing: 0.6,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -3266,7 +3335,11 @@ _buildCircularMuteBell(context),
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
                     ),
                     const SizedBox(height: 4),
-                    Text('de $totalAsignados asignados', style: const TextStyle(fontSize: 9.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('de $totalAsignados asignados', style: const TextStyle(fontSize: 9.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500), maxLines: 1),
+                    ),
                   ],
                 ),
               ),
@@ -3296,7 +3369,11 @@ _buildCircularMuteBell(context),
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF34D399)),
                     ),
                     const SizedBox(height: 4),
-                    Text('$puntualesCount puntuales', style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('$puntualesCount puntuales', style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.w600), maxLines: 1),
+                    ),
                   ],
                 ),
               ),
@@ -3326,7 +3403,11 @@ _buildCircularMuteBell(context),
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B)),
                     ),
                     const SizedBox(height: 4),
-                    Text(tardanzasStr, style: const TextStyle(fontSize: 9.5, color: Color(0xFFFBBF24), fontWeight: FontWeight.w600)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(tardanzasStr, style: const TextStyle(fontSize: 9.5, color: Color(0xFFFBBF24), fontWeight: FontWeight.w600), maxLines: 1),
+                    ),
                   ],
                 ),
               ),
@@ -3613,9 +3694,12 @@ _buildCircularMuteBell(context),
       children: [
         Row(
           children: [
-            const Text(
-              'Eventos Institucionales',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.2),
+            const Flexible(
+              child: Text(
+                'Eventos Institucionales',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.2),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(width: 8),
             Container(
@@ -3669,10 +3753,16 @@ _buildCircularMuteBell(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -3693,7 +3783,6 @@ _buildCircularMuteBell(context),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
@@ -4318,13 +4407,23 @@ _buildCircularMuteBell(context),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.access_time_filled_rounded, color: themeColor, size: 17),
-                  const SizedBox(width: 8),
-                  const Text('Jornada de Hoy', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.2)),
-                ],
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_filled_rounded, color: themeColor, size: 17),
+                    const SizedBox(width: 8),
+                    const Flexible(
+                      child: Text(
+                        'Jornada de Hoy',
+                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.2),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
@@ -4353,7 +4452,13 @@ _buildCircularMuteBell(context),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Entrada', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          const Flexible(
+                            child: Text(
+                              'Entrada',
+                              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -4362,14 +4467,17 @@ _buildCircularMuteBell(context),
                                   : const Color(0xFF222E33),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
-                              entry != null ? (entry.status == AttendanceStatus.LATE ? 'Tarde' : 'A tiempo') : 'Pendiente',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
-                                color: entry != null
-                                    ? (entry.status == AttendanceStatus.LATE ? const Color(0xFFF59E0B) : const Color(0xFF10B981))
-                                    : const Color(0xFF94A3B8),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                entry != null ? (entry.status == AttendanceStatus.LATE ? 'Tarde' : 'A tiempo') : 'Pendiente',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: entry != null
+                                      ? (entry.status == AttendanceStatus.LATE ? const Color(0xFFF59E0B) : const Color(0xFF10B981))
+                                      : const Color(0xFF94A3B8),
+                                ),
                               ),
                             ),
                           ),
@@ -4418,19 +4526,28 @@ _buildCircularMuteBell(context),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Salida', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          const Flexible(
+                            child: Text(
+                              'Salida',
+                              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: exit != null ? const Color(0xFF0E382B) : const Color(0xFF38290E),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
-                              exit != null ? 'Completado' : 'Pendiente',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
-                                color: exit != null ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                exit != null ? 'Completado' : 'Pendiente',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: exit != null ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                                ),
                               ),
                             ),
                           ),
@@ -4480,7 +4597,14 @@ _buildCircularMuteBell(context),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('CONTROL DE ASISTENCIA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.6)),
+            const Flexible(
+              child: Text(
+                'CONTROL DE ASISTENCIA',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.6),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
               decoration: BoxDecoration(
@@ -4587,7 +4711,17 @@ _buildCircularMuteBell(context),
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Icon(Icons.camera_alt_outlined, size: 20, color: Color(0xFF091417)),
-                      const Text('Iniciar Escáner Oficial', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Color(0xFF091417))),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Iniciar Escáner Oficial',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Color(0xFF091417)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       const Icon(Icons.arrow_forward_rounded, size: 20, color: Color(0xFF091417)),
                     ],
                   ),
@@ -4609,7 +4743,17 @@ _buildCircularMuteBell(context),
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Icon(Icons.face_retouching_natural_rounded, size: 20, color: themeColor),
-                      const Text('Control Biométrico Facial', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Colors.white)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Control Biométrico Facial',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Icon(Icons.arrow_forward_rounded, size: 20, color: themeColor),
                     ],
                   ),
@@ -4689,10 +4833,16 @@ _buildCircularMuteBell(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -4706,7 +4856,6 @@ _buildCircularMuteBell(context),
                               style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF10B981), letterSpacing: 0.4),
                             ),
                           ),
-                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
