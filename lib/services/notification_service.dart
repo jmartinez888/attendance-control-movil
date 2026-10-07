@@ -18,10 +18,17 @@ class NotificationService {
   static const String _keyNotificationsMuted = 'notifications_muted_v1';
   static final ValueNotifier<bool> isMutedNotifier = ValueNotifier<bool>(false);
 
-  static Future<void> _loadMutedPreference() async {
+  static bool _cachedHapticEnabled = true;
+  static bool _cachedHighPriorityDoze = true;
+  static String _cachedTone = 'institucional';
+
+  static Future<void> reloadPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       isMutedNotifier.value = prefs.getBool(_keyNotificationsMuted) ?? false;
+      _cachedHapticEnabled = prefs.getBool('notif_haptic_enabled') ?? true;
+      _cachedHighPriorityDoze = prefs.getBool('notif_high_priority_doze') ?? true;
+      _cachedTone = prefs.getString('notif_alert_tone') ?? 'institucional';
     } catch (_) {}
   }
 
@@ -67,7 +74,7 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      await _loadMutedPreference();
+      await reloadPreferences();
 
       // 1. Inicializar zonas horarias (Perú / América Latina) para programación offline
       tz.initializeTimeZones();
@@ -134,22 +141,39 @@ class NotificationService {
     }
   }
 
+  static AndroidScheduleMode get _activeScheduleMode => _cachedHighPriorityDoze
+      ? AndroidScheduleMode.exactAllowWhileIdle
+      : AndroidScheduleMode.exact;
+
+  static AndroidScheduleMode get _fallbackScheduleMode => _cachedHighPriorityDoze
+      ? AndroidScheduleMode.inexactAllowWhileIdle
+      : AndroidScheduleMode.inexact;
+
   /// Devuelve los detalles de notificación para Android e iOS
   static NotificationDetails _getNotificationDetails({
     String channelId = CHANNEL_ATTENDANCE_ID,
     String channelName = CHANNEL_ATTENDANCE_NAME,
     String channelDescription = CHANNEL_ATTENDANCE_DESC,
-    bool enableVibration = true,
+    bool? enableVibration,
+    bool? highPriorityDoze,
   }) {
+    final bool vib = enableVibration ?? _cachedHapticEnabled;
+    final bool doze = highPriorityDoze ?? _cachedHighPriorityDoze;
+
+    // Sufijo dinámico de canal para que el SO Android aplique de inmediato los cambios
+    // de tono acústico, vibración y prioridad sin quedar atado a la caché inmutable del canal anterior
+    final String effectiveChannelId = '${channelId}_${_cachedTone}_${vib ? 'v1' : 'v0'}_${doze ? 'hi' : 'std'}';
+
     final androidDetails = AndroidNotificationDetails(
-      channelId,
+      effectiveChannelId,
       channelName,
       channelDescription: channelDescription,
-      importance: Importance.max,
-      priority: Priority.high,
+      importance: doze ? Importance.max : Importance.defaultImportance,
+      priority: doze ? Priority.max : Priority.defaultPriority,
       ticker: 'Control de Asistencia IIAP',
       icon: '@mipmap/ic_launcher',
-      enableVibration: enableVibration,
+      enableVibration: vib,
+      vibrationPattern: vib ? Int64List.fromList([0, 250, 200, 250]) : null,
       playSound: true,
       fullScreenIntent: false,
       category: AndroidNotificationCategory.reminder,
@@ -256,7 +280,7 @@ class NotificationService {
       final scheduledTime = _nextInstanceOfTime(hour, minute);
       final details = _getNotificationDetails();
 
-      // Intento con exactAllowWhileIdle (para despertar al SO en modo reposo/Doze)
+      // Intento con scheduleMode dinámico según preferencia de Doze / Modo Reposo
       try {
         await _notificationsPlugin.zonedSchedule(
           id,
@@ -264,7 +288,7 @@ class NotificationService {
           body,
           scheduledTime,
           details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: _activeScheduleMode,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.time,
@@ -277,7 +301,7 @@ class NotificationService {
           body,
           scheduledTime,
           details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: _fallbackScheduleMode,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.time,
@@ -431,7 +455,7 @@ class NotificationService {
               'En 1 hora inicia "$title" en $location.',
               tzTime,
               details,
-              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              androidScheduleMode: _activeScheduleMode,
               uiLocalNotificationDateInterpretation:
                   UILocalNotificationDateInterpretation.absoluteTime,
             );
@@ -442,7 +466,7 @@ class NotificationService {
               'En 1 hora inicia "$title" en $location.',
               tzTime,
               details,
-              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              androidScheduleMode: _fallbackScheduleMode,
               uiLocalNotificationDateInterpretation:
                   UILocalNotificationDateInterpretation.absoluteTime,
             );
@@ -460,7 +484,7 @@ class NotificationService {
               '"$title" inicia en $leadText en $location.',
               tzTime,
               details,
-              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              androidScheduleMode: _activeScheduleMode,
               uiLocalNotificationDateInterpretation:
                   UILocalNotificationDateInterpretation.absoluteTime,
             );
@@ -471,7 +495,7 @@ class NotificationService {
               '"$title" inicia en $leadText en $location.',
               tzTime,
               details,
-              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              androidScheduleMode: _fallbackScheduleMode,
               uiLocalNotificationDateInterpretation:
                   UILocalNotificationDateInterpretation.absoluteTime,
             );
@@ -496,7 +520,7 @@ class NotificationService {
             'El evento "$title" ha culminado. Recuerda registrar tu salida o marcado final.',
             tzEnd,
             details,
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            androidScheduleMode: _activeScheduleMode,
             uiLocalNotificationDateInterpretation:
                 UILocalNotificationDateInterpretation.absoluteTime,
           );
@@ -507,7 +531,7 @@ class NotificationService {
             'El evento "$title" ha culminado. Recuerda registrar tu salida o marcado final.',
             tzEnd,
             details,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            androidScheduleMode: _fallbackScheduleMode,
             uiLocalNotificationDateInterpretation:
                 UILocalNotificationDateInterpretation.absoluteTime,
           );

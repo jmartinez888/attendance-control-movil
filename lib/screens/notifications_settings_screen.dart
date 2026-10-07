@@ -188,7 +188,31 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
         HapticFeedback.selectionClick();
       }
 
-      if (_isMasterEnabled) {
+      if (key == 'notif_haptic_enabled' || key == 'notif_high_priority_doze') {
+        await NotificationService.reloadPreferences();
+        if (_isMasterEnabled) {
+          await NotificationService.scheduleAllAttendanceReminders();
+          await NotificationService.syncEventSettings(
+            eventsEnabled: _notifEvents,
+            closeEnabled: _notifEventClose,
+            events: EventService.eventsNotifier.value,
+          );
+        }
+        if (mounted) {
+          final isVib = key == 'notif_haptic_enabled';
+          AppToast.show(
+            context,
+            title: isVib
+                ? (value ? 'Vibración háptica activada' : 'Vibración háptica silenciada')
+                : (value ? 'Prioridad alta en reposo activa' : 'Modo ahorro de energía activo'),
+            subtitle: isVib
+                ? (value ? 'Doble pulsación táctil al sonar la alarma' : 'Alarmas silenciosas sin vibrar')
+                : (value ? 'Omite suspensión Doze del SO para máxima puntualidad' : 'Respeta optimizaciones de batería del SO'),
+            icon: isVib ? Icons.vibration_rounded : Icons.alarm_on_rounded,
+            accentColor: const Color(0xFF10B981),
+          );
+        }
+      } else if (_isMasterEnabled) {
         if (key.startsWith('notif_morning_') || key.startsWith('notif_afternoon_')) {
           await NotificationService.scheduleAllAttendanceReminders();
         } else if (key == 'notif_events' || key == 'notif_event_close') {
@@ -473,7 +497,33 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setString('notif_alert_tone', t['id']!);
                         if (mounted) setState(() => _alertToneId = t['id']!);
-                        if (_notifHapticEnabled) HapticFeedback.selectionClick();
+                        if (_notifHapticEnabled) {
+                          if (t['id'] == 'alarma_energizada') {
+                            HapticFeedback.heavyImpact();
+                          } else if (t['id'] == 'campana_suave') {
+                            HapticFeedback.lightImpact();
+                          } else {
+                            HapticFeedback.selectionClick();
+                          }
+                        }
+                        await NotificationService.reloadPreferences();
+                        if (_isMasterEnabled) {
+                          await NotificationService.scheduleAllAttendanceReminders();
+                          await NotificationService.syncEventSettings(
+                            eventsEnabled: _notifEvents,
+                            closeEnabled: _notifEventClose,
+                            events: EventService.eventsNotifier.value,
+                          );
+                        }
+                        if (mounted) {
+                          AppToast.show(
+                            context,
+                            title: 'Tono acústico actualizado',
+                            subtitle: t['title']!,
+                            icon: Icons.volume_up_rounded,
+                            accentColor: const Color(0xFF10B981),
+                          );
+                        }
                       },
                     );
                   }),
