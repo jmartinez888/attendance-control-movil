@@ -46,7 +46,7 @@ class _SplashGateScreenState extends State<SplashGateScreen> with SingleTickerPr
   }
 
   Future<void> _initAppAndNavigate() async {
-    // Permitir al usuario ver el splash institucional de IIAP con fluidez (~1100ms)
+    // Permitir al usuario ver el splash institucional de IIAP con fluidez (~700ms)
     // mientras en paralelo se verifica la sesión en disco
     final startTime = DateTime.now();
 
@@ -54,7 +54,7 @@ class _SplashGateScreenState extends State<SplashGateScreen> with SingleTickerPr
     final token = StorageService.tokenSync ?? await StorageService.getToken();
 
     final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-    const minSplashDuration = 1100;
+    const minSplashDuration = 700;
     if (elapsed < minSplashDuration) {
       await Future.delayed(Duration(milliseconds: minSplashDuration - elapsed));
     }

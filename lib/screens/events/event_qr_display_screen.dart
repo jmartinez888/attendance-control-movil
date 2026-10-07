@@ -115,9 +115,12 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
     });
   }
 
+  bool _isCheckingAttendees = false;
+
   /// Consulta al backend si hay un nuevo asistente registrado al evento
   Future<void> _checkNewAttendees() async {
-    if (!mounted) return;
+    if (!mounted || _isCheckingAttendees) return;
+    _isCheckingAttendees = true;
     try {
       final res = await ApiClient.get(ApiConfig.eventById(widget.event.id), requiresAuth: false);
       if (res is Map<String, dynamic> && mounted) {
@@ -143,6 +146,8 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
       }
     } catch (_) {
       // Ignorar errores silenciosos en sondeo de fondo
+    } finally {
+      _isCheckingAttendees = false;
     }
   }
 

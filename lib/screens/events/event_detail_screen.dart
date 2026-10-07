@@ -36,6 +36,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late EventModel _currentEvent;
   bool _isLoading = false;
   Timer? _liveRefreshTimer;
+  bool _isLiveRefreshing = false;
   List<Map<String, dynamic>> _assignedManagers = [];
   int _selectedTab = 0;
   String _attendeeSearchQuery = '';
@@ -52,21 +53,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   void _startLiveRefresh() {
     _liveRefreshTimer?.cancel();
     // Sondeo periódico para reflejar en tiempo real participantes que escanean el QR o se registran vía web/manual
-    _liveRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      if (!mounted) return;
+    _liveRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || _isLiveRefreshing) return;
+      _isLiveRefreshing = true;
       try {
         final fresh = await EventService.getEventById(_currentEvent.id);
         if (fresh != null && mounted) {
           if (fresh.attendees.length != _currentEvent.attendees.length || fresh != _currentEvent) {
             final hadFewer = fresh.attendees.length > _currentEvent.attendees.length;
+            final managersChanged = fresh.managerIds.length != _currentEvent.managerIds.length;
             setState(() => _currentEvent = fresh);
-            _loadManagers();
+            if (managersChanged || _assignedManagers.isEmpty) {
+              _loadManagers();
+            }
             if (hadFewer) {
               HapticFeedback.lightImpact();
             }
           }
         }
-      } catch (_) {}
+      } catch (_) {} finally {
+        _isLiveRefreshing = false;
+      }
     });
   }
 

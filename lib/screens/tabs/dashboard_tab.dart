@@ -46,6 +46,7 @@ class _DashboardTabState extends State<DashboardTab> {
   List<AttendanceModel> _todayRecords = [];
   List<AttendanceModel> _allRecords = [];
   Timer? _realtimeTimer;
+  bool _isRealtimeSyncing = false;
 
   @override
   void initState() {
@@ -62,11 +63,16 @@ class _DashboardTabState extends State<DashboardTab> {
 
   void _startRealtimeSync() {
     _realtimeTimer?.cancel();
-    // Sincronización en tiempo real continua cada 2.5 segundos para eventos y asistencias
-    _realtimeTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) async {
-      if (!mounted) return;
-      await _fetchAttendanceData();
-      await EventService.getEvents();
+    // Sincronización en tiempo real continua e inteligente con guard de concurrencia
+    _realtimeTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) async {
+      if (!mounted || _isRealtimeSyncing) return;
+      _isRealtimeSyncing = true;
+      try {
+        await _fetchAttendanceData();
+        await EventService.getEvents();
+      } finally {
+        _isRealtimeSyncing = false;
+      }
     });
   }
 
@@ -84,11 +90,17 @@ class _DashboardTabState extends State<DashboardTab> {
     EventService.getEvents();
   }
 
+  bool _areRecordsDifferent(List<AttendanceModel> oldList, List<AttendanceModel> newList) {
+    if (oldList.length != newList.length) return true;
+    if (oldList.isEmpty) return false;
+    return oldList.first.id != newList.first.id || oldList.last.id != newList.last.id;
+  }
+
   Future<void> _fetchAttendanceData() async {
     if (!mounted) return;
     try {
       final records = await AttendanceService.getTodayRecords();
-      if (mounted) {
+      if (mounted && _areRecordsDifferent(_todayRecords, records)) {
         setState(() {
           _todayRecords = records;
         });
@@ -99,7 +111,7 @@ class _DashboardTabState extends State<DashboardTab> {
       final user = StorageService.currentUser;
       if (user != null && user.canManageAttendanceQr) {
         final all = await AttendanceService.getAllRecords();
-        if (mounted) {
+        if (mounted && _areRecordsDifferent(_allRecords, all)) {
           setState(() {
             _allRecords = all;
           });

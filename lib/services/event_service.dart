@@ -34,20 +34,25 @@ class EventService {
             .map((json) => EventModel.fromJson(json))
             .where((e) => !e.id.startsWith('evt_seed_'))
             .toList();
-        list.sort((a, b) => b.startDate.compareTo(a.startDate));
-        eventsNotifier.value = list;
-        await _saveToLocalCache(list);
+        final currentList = eventsNotifier.value;
+        final bool hasChanged = currentList.length != list.length ||
+            (currentList.isNotEmpty && list.isNotEmpty && (currentList.first.id != list.first.id || currentList.first.attendees.length != list.first.attendees.length));
 
-        // Programar recordatorios offline en el SO para eventos futuros
-        final now = DateTime.now();
-        for (final evt in list) {
-          if (evt.startDate.isAfter(now)) {
-            NotificationService.scheduleEventReminders(
-              eventId: evt.id,
-              title: evt.title,
-              location: evt.location,
-              startDate: evt.startDate,
-            );
+        if (hasChanged || currentList.isEmpty) {
+          eventsNotifier.value = list;
+          await _saveToLocalCache(list);
+
+          // Programar recordatorios offline en el SO solo cuando la lista cambia
+          final now = DateTime.now();
+          for (final evt in list) {
+            if (evt.startDate.isAfter(now)) {
+              NotificationService.scheduleEventReminders(
+                eventId: evt.id,
+                title: evt.title,
+                location: evt.location,
+                startDate: evt.startDate,
+              );
+            }
           }
         }
 

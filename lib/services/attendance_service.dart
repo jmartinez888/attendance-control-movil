@@ -102,6 +102,7 @@ class AttendanceService {
   static const String _keyCachedMy = 'cached_my_attendance_records_v1';
   static const String _keyCachedAll = 'cached_all_attendance_records_v1';
 
+  static SharedPreferences? _prefs;
   static List<AttendanceModel> _cachedTodayRecords = [];
   static List<AttendanceModel> _cachedMyRecords = [];
   static List<AttendanceModel> _cachedAllRecords = [];
@@ -109,7 +110,8 @@ class AttendanceService {
   /// Inicializa los datos cacheados en memoria al arrancar la app para respuesta instantánea (0 ms)
   static Future<void> init() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
+      _prefs = prefs;
 
       final todayStr = prefs.getString(_keyCachedToday);
       if (todayStr != null && todayStr.isNotEmpty) {
@@ -152,11 +154,16 @@ class AttendanceService {
       final response = await ApiClient.get(ApiConfig.attendanceMyRecords);
       if (response is List) {
         final list = response.map((item) => AttendanceModel.fromJson(item as Map<String, dynamic>)).toList();
+        final bool changed = list.length != _cachedMyRecords.length ||
+            (_cachedMyRecords.isNotEmpty && list.isNotEmpty && _cachedMyRecords.first.id != list.first.id);
         _cachedMyRecords = list;
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_keyCachedMy, jsonEncode(list.map((e) => e.toJson()).toList()));
-        } catch (_) {}
+        if (changed) {
+          try {
+            final prefs = _prefs ?? await SharedPreferences.getInstance();
+            _prefs = prefs;
+            await prefs.setString(_keyCachedMy, jsonEncode(list.map((e) => e.toJson()).toList()));
+          } catch (_) {}
+        }
         return list;
       }
     } catch (e) {
@@ -171,11 +178,16 @@ class AttendanceService {
       final response = await ApiClient.get(ApiConfig.attendanceToday);
       if (response is List) {
         final list = response.map((item) => AttendanceModel.fromJson(item as Map<String, dynamic>)).toList();
+        final bool changed = list.length != _cachedTodayRecords.length ||
+            (_cachedTodayRecords.isNotEmpty && list.isNotEmpty && _cachedTodayRecords.first.id != list.first.id);
         _cachedTodayRecords = list;
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_keyCachedToday, jsonEncode(list.map((e) => e.toJson()).toList()));
-        } catch (_) {}
+        if (changed) {
+          try {
+            final prefs = _prefs ?? await SharedPreferences.getInstance();
+            _prefs = prefs;
+            await prefs.setString(_keyCachedToday, jsonEncode(list.map((e) => e.toJson()).toList()));
+          } catch (_) {}
+        }
         return list;
       }
     } catch (e) {
@@ -190,11 +202,16 @@ class AttendanceService {
       final response = await ApiClient.get(ApiConfig.attendanceAll);
       if (response is List) {
         final list = response.map((item) => AttendanceModel.fromJson(item as Map<String, dynamic>)).toList();
+        final bool changed = list.length != _cachedAllRecords.length ||
+            (_cachedAllRecords.isNotEmpty && list.isNotEmpty && _cachedAllRecords.first.id != list.first.id);
         _cachedAllRecords = list;
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_keyCachedAll, jsonEncode(list.map((e) => e.toJson()).toList()));
-        } catch (_) {}
+        if (changed) {
+          try {
+            final prefs = _prefs ?? await SharedPreferences.getInstance();
+            _prefs = prefs;
+            await prefs.setString(_keyCachedAll, jsonEncode(list.map((e) => e.toJson()).toList()));
+          } catch (_) {}
+        }
         return list;
       }
     } catch (e) {

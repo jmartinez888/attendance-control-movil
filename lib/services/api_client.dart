@@ -15,6 +15,9 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
+  // Cliente HTTP compartido y persistente para reutilizar conexiones TCP y TLS (Keep-Alive)
+  static final http.Client _client = http.Client();
+
   static Future<Map<String, String>> _headers({bool requiresAuth = true}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -22,7 +25,8 @@ class ApiClient {
     };
 
     if (requiresAuth) {
-      final token = await StorageService.getToken();
+      // Priorizar token en RAM (0 ms) sin bloquear el hilo de I/O
+      final token = StorageService.tokenSync ?? await StorageService.getToken();
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
@@ -62,7 +66,7 @@ class ApiClient {
   static Future<dynamic> get(String url, {bool requiresAuth = true}) async {
     try {
       final headers = await _headers(requiresAuth: requiresAuth);
-      final response = await http
+      final response = await _client
           .get(Uri.parse(url), headers: headers)
           .timeout(const Duration(seconds: 15));
 
@@ -71,7 +75,7 @@ class ApiClient {
         final reauthenticated = await AuthService.trySilentRelogin();
         if (reauthenticated) {
           final retryHeaders = await _headers(requiresAuth: requiresAuth);
-          final retryResponse = await http
+          final retryResponse = await _client
               .get(Uri.parse(url), headers: retryHeaders)
               .timeout(const Duration(seconds: 15));
           return _processResponse(retryResponse);
@@ -94,7 +98,7 @@ class ApiClient {
   }) async {
     try {
       final headers = await _headers(requiresAuth: requiresAuth);
-      final response = await http
+      final response = await _client
           .post(
             Uri.parse(url),
             headers: headers,
@@ -107,7 +111,7 @@ class ApiClient {
         final reauthenticated = await AuthService.trySilentRelogin();
         if (reauthenticated) {
           final retryHeaders = await _headers(requiresAuth: requiresAuth);
-          final retryResponse = await http
+          final retryResponse = await _client
               .post(
                 Uri.parse(url),
                 headers: retryHeaders,
@@ -129,7 +133,7 @@ class ApiClient {
   static Future<dynamic> patch(String url, {Map<String, dynamic>? body, bool requiresAuth = true}) async {
     try {
       final headers = await _headers(requiresAuth: requiresAuth);
-      final response = await http
+      final response = await _client
           .patch(
             Uri.parse(url),
             headers: headers,
@@ -142,7 +146,7 @@ class ApiClient {
         final reauthenticated = await AuthService.trySilentRelogin();
         if (reauthenticated) {
           final retryHeaders = await _headers(requiresAuth: requiresAuth);
-          final retryResponse = await http
+          final retryResponse = await _client
               .patch(
                 Uri.parse(url),
                 headers: retryHeaders,
@@ -164,7 +168,7 @@ class ApiClient {
   static Future<dynamic> delete(String url, {Map<String, dynamic>? body, bool requiresAuth = true}) async {
     try {
       final headers = await _headers(requiresAuth: requiresAuth);
-      final response = await http
+      final response = await _client
           .delete(
             Uri.parse(url),
             headers: headers,
@@ -177,7 +181,7 @@ class ApiClient {
         final reauthenticated = await AuthService.trySilentRelogin();
         if (reauthenticated) {
           final retryHeaders = await _headers(requiresAuth: requiresAuth);
-          final retryResponse = await http
+          final retryResponse = await _client
               .delete(
                 Uri.parse(url),
                 headers: retryHeaders,
