@@ -13,45 +13,68 @@ class SplashGateScreen extends StatefulWidget {
   State<SplashGateScreen> createState() => _SplashGateScreenState();
 }
 
-class _SplashGateScreenState extends State<SplashGateScreen> {
+class _SplashGateScreenState extends State<SplashGateScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _opacityAnimation;
+  bool _hasNavigated = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAuth();
-    });
-    // Fallback de seguridad por si Hot Restart interrumpe el ciclo
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        _checkAuth();
-      }
-    });
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeIn),
+    );
+
+    _animController.forward();
+    _initAppAndNavigate();
   }
 
-  Future<void> _checkAuth() async {
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initAppAndNavigate() async {
+    // Permitir al usuario ver el splash institucional de IIAP con fluidez (~1100ms)
+    // mientras en paralelo se verifica la sesión en disco
+    final startTime = DateTime.now();
+
     final user = StorageService.currentUser;
     final token = StorageService.tokenSync ?? await StorageService.getToken();
 
-    // SESIÓN PERSISTENTE OFFLINE-FIRST:
-    // Si hay usuario o token guardado localmente, se manda de frente al Home de forma instantánea.
-    // La validación y refresh del token se harán en segundo plano una vez dentro del Home.
-    if (user != null || (token != null && token.isNotEmpty)) {
-      if (mounted) {
-        _navigateTo(const HomeScreen());
-      }
-      return;
+    final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+    const minSplashDuration = 1100;
+    if (elapsed < minSplashDuration) {
+      await Future.delayed(Duration(milliseconds: minSplashDuration - elapsed));
     }
 
-    // Solo si no hay ninguna sesión guardada previamente va al login
-    if (mounted) {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+
+    // Si hay usuario o token guardado localmente, se va al HomeScreen de forma instantánea.
+    if (user != null || (token != null && token.isNotEmpty)) {
+      _navigateTo(const HomeScreen());
+    } else {
       _navigateTo(const LoginScreen());
     }
   }
 
   void _navigateTo(Widget targetScreen) {
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 100),
+        transitionDuration: const Duration(milliseconds: 350),
         pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -92,37 +115,43 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
                 children: [
                   // Logo central IIAP
                   Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                    child: FadeTransition(
+                      opacity: _opacityAnimation,
+                      child: ScaleTransition(
+                        scale: _scaleAnimation,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: const LeafLogo(size: 84),
-                        ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'IIAP',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 36,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 3.0,
+                              child: const LeafLogo(size: 84),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'IIAP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 3.0,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
 
                 // Pie de página institucional
                 Align(

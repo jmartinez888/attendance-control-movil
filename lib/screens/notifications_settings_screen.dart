@@ -1,8 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/theme_service.dart';
 import '../services/notification_service.dart';
+import '../services/storage_service.dart';
+import '../models/user_model.dart';
 import '../utils/responsive.dart';
+import '../widgets/app_toast.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -12,30 +16,72 @@ class NotificationsSettingsScreen extends StatefulWidget {
 }
 
 class _NotificationsSettingsScreenState extends State<NotificationsSettingsScreen> {
+  bool _isMasterEnabled = true;
   bool _notifMorningEntry = true;
   bool _notifMorningExit = true;
   bool _notifAfternoonEntry = true;
   bool _notifAfternoonExit = true;
   bool _notifEvents = true;
+  bool _notifEventClose = true;
+  bool _notifHapticEnabled = true;
+  bool _notifHighPriorityDoze = true;
+
+  String _morningEntryTime = '07:45';
+  String _morningExitTime = '13:00';
+  String _afternoonEntryTime = '14:00';
+  String _afternoonExitTime = '18:30';
+  int _leadMinutes = 15;
+  String _alertToneId = 'institucional';
+
   bool _isLoading = true;
   bool _isTesting = false;
 
   @override
   void initState() {
     super.initState();
+    NotificationService.isMutedNotifier.addListener(_onMutedChanged);
     _loadSettings();
+  }
+
+  void _onMutedChanged() {
+    if (mounted) {
+      final master = !NotificationService.isMutedNotifier.value;
+      if (_isMasterEnabled != master) {
+        setState(() => _isMasterEnabled = master);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    NotificationService.isMutedNotifier.removeListener(_onMutedChanged);
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final isMuted = prefs.getBool('notifications_muted_v1') ?? false;
+
       if (mounted) {
         setState(() {
+          _isMasterEnabled = !isMuted;
           _notifMorningEntry = prefs.getBool('notif_morning_entry') ?? true;
           _notifMorningExit = prefs.getBool('notif_morning_exit') ?? true;
           _notifAfternoonEntry = prefs.getBool('notif_afternoon_entry') ?? true;
           _notifAfternoonExit = prefs.getBool('notif_afternoon_exit') ?? true;
           _notifEvents = prefs.getBool('notif_events') ?? true;
+          _notifEventClose = prefs.getBool('notif_event_close') ?? true;
+          _notifHapticEnabled = prefs.getBool('notif_haptic_enabled') ?? true;
+          _notifHighPriorityDoze = prefs.getBool('notif_high_priority_doze') ?? true;
+
+          _morningEntryTime = prefs.getString('notif_morning_entry_time') ?? '07:45';
+          _morningExitTime = prefs.getString('notif_morning_exit_time') ?? '13:00';
+          _afternoonEntryTime = prefs.getString('notif_afternoon_entry_time') ?? '14:00';
+          _afternoonExitTime = prefs.getString('notif_afternoon_exit_time') ?? '18:30';
+          _leadMinutes = prefs.getInt('notif_events_lead_minutes') ?? 15;
+          _alertToneId = prefs.getString('notif_alert_tone') ?? 'institucional';
+
           _isLoading = false;
         });
       }
@@ -44,6 +90,74 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  int get _activeCount {
+    if (!_isMasterEnabled) return 0;
+    int count = 0;
+    if (_notifMorningEntry) count++;
+    if (_notifMorningExit) count++;
+    if (_notifAfternoonEntry) count++;
+    if (_notifAfternoonExit) count++;
+    if (_notifEvents) count++;
+    if (_notifEventClose) count++;
+    return count;
+  }
+
+  String _formatTimeBadge(String time24) {
+    try {
+      final parts = time24.split(':');
+      final h = int.parse(parts[0]);
+      final m = int.parse(parts[1]);
+      final period = h >= 12 ? 'PM' : 'AM';
+      final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+      final hStr = h12.toString().padLeft(2, '0');
+      final mStr = m.toString().padLeft(2, '0');
+      return '$hStr:$mStr $period';
+    } catch (_) {
+      return time24;
+    }
+  }
+
+  String get _leadMinutesBadgeText {
+    if (_leadMinutes >= 60) {
+      final h = _leadMinutes ~/ 60;
+      return '$h HORA${h > 1 ? 'S' : ''} ANTES';
+    }
+    return '$_leadMinutes MIN ANTES';
+  }
+
+  String get _alertToneLabel {
+    switch (_alertToneId) {
+      case 'campana_suave':
+        return 'Campana Suave Institucional';
+      case 'alarma_energizada':
+        return 'Alerta Enérgica de Marcado';
+      case 'sistema':
+        return 'Predeterminado del Sistema (Móvil)';
+      case 'institucional':
+      default:
+        return 'Sonido institucional predeterminado (IIAP Core)';
+    }
+  }
+
+  Future<void> _toggleMasterSwitch(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() => _isMasterEnabled = value);
+      await prefs.setBool('notifications_muted_v1', !value);
+      NotificationService.isMutedNotifier.value = !value;
+
+      if (!value) {
+        await NotificationService.cancelAll();
+      } else {
+        await NotificationService.scheduleAllAttendanceReminders();
+      }
+
+      if (_notifHapticEnabled) {
+        HapticFeedback.lightImpact();
+      }
+    } catch (_) {}
   }
 
   Future<void> _toggleSetting(String key, bool value) async {
@@ -57,406 +171,1575 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
           if (key == 'notif_afternoon_entry') _notifAfternoonEntry = value;
           if (key == 'notif_afternoon_exit') _notifAfternoonExit = value;
           if (key == 'notif_events') _notifEvents = value;
+          if (key == 'notif_event_close') _notifEventClose = value;
+          if (key == 'notif_haptic_enabled') _notifHapticEnabled = value;
+          if (key == 'notif_high_priority_doze') _notifHighPriorityDoze = value;
         });
       }
-      // Reprogramar las alarmas en el sistema operativo offline
-      await NotificationService.scheduleAllAttendanceReminders();
+
+      if (_notifHapticEnabled) {
+        HapticFeedback.selectionClick();
+      }
+
+      if (_isMasterEnabled) {
+        await NotificationService.scheduleAllAttendanceReminders();
+      }
     } catch (_) {}
+  }
+
+  Future<void> _editTime({
+    required String key,
+    required String currentTime24,
+    required String title,
+  }) async {
+    final parts = currentTime24.split(':');
+    final initialH = int.tryParse(parts.first) ?? 8;
+    final initialM = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: initialH, minute: initialM),
+      helpText: 'HORARIO: $title'.toUpperCase(),
+      cancelText: 'CANCELAR',
+      confirmText: 'GUARDAR',
+      builder: (context, child) {
+        return Theme(
+          data: (isDark ? ThemeData.dark() : ThemeData.light()).copyWith(
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: Color(0xFF10B981),
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF132228),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: Color(0xFF10B981),
+                    onPrimary: Colors.white,
+                  ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final hStr = picked.hour.toString().padLeft(2, '0');
+      final mStr = picked.minute.toString().padLeft(2, '0');
+      final newTimeStr = '$hStr:$mStr';
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, newTimeStr);
+
+      if (mounted) {
+        setState(() {
+          if (key == 'notif_morning_entry_time') _morningEntryTime = newTimeStr;
+          if (key == 'notif_morning_exit_time') _morningExitTime = newTimeStr;
+          if (key == 'notif_afternoon_entry_time') _afternoonEntryTime = newTimeStr;
+          if (key == 'notif_afternoon_exit_time') _afternoonExitTime = newTimeStr;
+        });
+      }
+
+      if (_isMasterEnabled) {
+        await NotificationService.scheduleAllAttendanceReminders();
+      }
+
+      if (_notifHapticEnabled) {
+        HapticFeedback.mediumImpact();
+      }
+
+      if (mounted) {
+        AppToast.show(
+          context,
+          title: 'Alarma reprogramada',
+          subtitle: 'Nuevo horario establecido a las ${_formatTimeBadge(newTimeStr)}',
+          icon: Icons.access_time_rounded,
+          accentColor: const Color(0xFF10B981),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectLeadMinutes() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final options = [
+      {'label': '10 MIN ANTES', 'minutes': 10},
+      {'label': '15 MIN ANTES (Predeterminado)', 'minutes': 15},
+      {'label': '30 MIN ANTES', 'minutes': 30},
+      {'label': '45 MIN ANTES', 'minutes': 45},
+      {'label': '1 HORA ANTES', 'minutes': 60},
+      {'label': '2 HORAS ANTES', 'minutes': 120},
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF132228) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Responsive.constrained(
+            context,
+            maxTabletWidth: 500,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Anticipación de Aviso para Eventos',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Selecciona con cuánta anticipación deseas recibir la alarma previa a una capacitación o evento.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...options.map((opt) {
+                    final mins = opt['minutes'] as int;
+                    final isSelected = mins == _leadMinutes;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                        color: isSelected ? const Color(0xFF10B981) : (isDark ? Colors.white38 : Colors.black38),
+                      ),
+                      title: Text(
+                        opt['label'] as String,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setInt('notif_events_lead_minutes', mins);
+                        if (mounted) setState(() => _leadMinutes = mins);
+                        if (_notifHapticEnabled) HapticFeedback.selectionClick();
+                      },
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectTone() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tones = [
+      {
+        'id': 'institucional',
+        'title': 'Sonido Institucional (IIAP Core)',
+        'desc': 'Tono oficial sobrio y armónico optimizado para el personal',
+      },
+      {
+        'id': 'campana_suave',
+        'title': 'Campana Suave de Entrada',
+        'desc': 'Sonido acústico tenue para alertas amigables de jornada',
+      },
+      {
+        'id': 'alarma_energizada',
+        'title': 'Alerta Enérgica de Marcado',
+        'desc': 'Máxima perceptibilidad para no olvidar tu marcación diaria',
+      },
+      {
+        'id': 'sistema',
+        'title': 'Predeterminado del Sistema Móvil',
+        'desc': 'Utiliza el timbre de notificaciones nativo de tu teléfono',
+      },
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF132228) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Responsive.constrained(
+            context,
+            maxTabletWidth: 500,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Tono de Alerta y Notificación',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Elige la acústica con la que sonarán los recordatorios de asistencia.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...tones.map((t) {
+                    final isSelected = t['id'] == _alertToneId;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(vertical: 2),
+                      leading: Icon(
+                        isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+                        color: isSelected ? const Color(0xFF10B981) : (isDark ? Colors.white38 : Colors.black38),
+                        size: 22,
+                      ),
+                      title: Text(
+                        t['title']!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      subtitle: Text(
+                        t['desc']!,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('notif_alert_tone', t['id']!);
+                        if (mounted) setState(() => _alertToneId = t['id']!);
+                        if (_notifHapticEnabled) HapticFeedback.selectionClick();
+                      },
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showInfoModal() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF132228) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Responsive.constrained(
+            context,
+            maxTabletWidth: 500,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.shield_outlined,
+                          color: Color(0xFF10B981),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Recordatorios Offline IIAP',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Sincronización Nativa con el Sistema',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF10B981),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    '• 100% Sin Internet: Las alertas se programan en el Administrador de Alarmas exactas del sistema operativo (Android AlarmManager / iOS BGTasks).\n\n'
+                    '• Fuera de la App: Se dispararán con precisión exacta incluso si la aplicación está cerrada o tu teléfono está en reposo profundo (Doze Mode).\n\n'
+                    '• Horarios Oficiales: Sincronizados con las horas de entrada matutina y vespertina oficiales del IIAP.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: _isTesting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.send_rounded, size: 18),
+                      label: Text(
+                        _isTesting ? 'Enviando prueba...' : 'Enviar Alerta de Prueba Ahora',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: _isTesting
+                          ? null
+                          : () async {
+                              Navigator.pop(ctx);
+                              _triggerTest();
+                            },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _triggerTest() async {
+    setState(() => _isTesting = true);
+    try {
+      await NotificationService.triggerTestNotification();
+      if (_notifHapticEnabled) {
+        HapticFeedback.heavyImpact();
+      }
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        title: '¡Notificación de prueba enviada!',
+        subtitle: 'Revisa la barra superior de tu dispositivo.',
+        icon: Icons.check_circle_rounded,
+        accentColor: const Color(0xFF16A34A),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        title: 'Error enviando prueba',
+        subtitle: '$e',
+        icon: Icons.error_outline_rounded,
+        accentColor: const Color(0xFFEF4444),
+      );
+    } finally {
+      if (mounted) setState(() => _isTesting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final primary = ThemeService.primaryColor(context);
+
+    final scaffoldBg = isDark ? const Color(0xFF0C1417) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF121F24) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF1C2F37) : const Color(0xFFE2E8F0);
+    final textWhite = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSub = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    const accentGreen = Color(0xFF00C853);
+    const emeraldPill = Color(0xFF10B981);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: ThemeService.cardBg(context),
-        elevation: 0.5,
+        backgroundColor: scaffoldBg,
+        elevation: 0,
         titleSpacing: 0,
+        centerTitle: false,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: textWhite,
+            size: 20,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(
           'Notificaciones',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            color: textWhite,
+            letterSpacing: -0.2,
           ),
         ),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.info_outline_rounded,
+              color: textWhite.withValues(alpha: 0.8),
+              size: 22,
+            ),
+            tooltip: 'Información y Diagnóstico',
+            onPressed: _showInfoModal,
           ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Responsive.constrained(
-                context,
-                maxTabletWidth: 720,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Tarjeta explicativa Offline-First
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: ThemeService.cardBg(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: ThemeService.cardBorder(context)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: primary.withValues(alpha: 0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.notifications_active_rounded,
-                                  color: primary,
-                                  size: 22,
+          Padding(
+            padding: const EdgeInsets.only(right: 16, left: 4),
+            child: Center(
+              child: ValueListenableBuilder<UserModel?>(
+                valueListenable: StorageService.currentUserNotifier,
+                builder: (context, user, _) {
+                  return Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2DD4BF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: user?.photoUrl != null && user!.photoUrl!.isNotEmpty
+                          ? ClipOval(
+                              child: Image.network(
+                                user.photoUrl!,
+                                fit: BoxFit.cover,
+                                width: 34,
+                                height: 34,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.person_rounded,
+                                  color: Color(0xFF0F172A),
+                                  size: 20,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Recordatorios en el Dispositivo',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
+                            )
+                          : const Icon(
+                              Icons.person_rounded,
+                              color: Color(0xFF0F172A),
+                              size: 20,
+                            ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: emeraldPill))
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 620;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Responsive.constrained(
+                    context,
+                    maxTabletWidth: 780,
+                    maxDesktopWidth: 880,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // --- 1. BANNER PRINCIPAL: RECORDATORIOS LOCALES ---
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: cardBorder),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Badges superiores responsivos con Wrap anti-overflow
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
-                                        _buildTag(
-                                          icon: Icons.wifi_off_rounded,
-                                          label: '100% Offline',
-                                          color: const Color(0xFF10B981),
+                                        // Badge 1: 100% OFFLINE
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF063D2E).withValues(alpha: 0.7),
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: emeraldPill.withValues(alpha: 0.4)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: const BoxDecoration(
+                                                  color: emeraldPill,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Text(
+                                                '100% OFFLINE',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: emeraldPill,
+                                                  letterSpacing: 0.4,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                        const SizedBox(width: 6),
-                                        _buildTag(
-                                          icon: Icons.alarm_on_rounded,
-                                          label: 'Fuera de la app',
-                                          color: const Color(0xFF3B82F6),
+
+                                        // Badge 2: IIAP Core
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF1A2830).withValues(alpha: 0.8),
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: const Color(0xFF2A3F4C)),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.shield_outlined, size: 12, color: emeraldPill),
+                                              SizedBox(width: 5),
+                                              Text(
+                                                'IIAP Core',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.fact_check_outlined,
+                                    size: 18,
+                                    color: textSub.withValues(alpha: 0.6),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+
+                              Text(
+                                'Recordatorios Locales',
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                  color: textWhite,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+
+                              Text(
+                                'Las alarmas programadas se activarán con precisión milimétrica incluso sin conexión a internet.',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: textSub,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Switch Maestro
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF0A1115) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: cardBorder.withValues(alpha: 0.7)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: emeraldPill.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.notifications_active_rounded,
+                                        color: emeraldPill,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Activar todos los recordatorios',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: textWhite,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _isMasterEnabled
+                                                ? '$_activeCount activos en este dispositivo'
+                                                : 'Recordatorios en pausa (0 activos)',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: _isMasterEnabled ? emeraldPill : const Color(0xFFEF4444),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    CupertinoSwitch(
+                                      value: _isMasterEnabled,
+                                      activeTrackColor: accentGreen,
+                                      inactiveTrackColor: isDark ? const Color(0xFF1E2D33) : const Color(0xFFCBD5E1),
+                                      onChanged: _toggleMasterSwitch,
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Las alarmas se configuran directamente en el Administrador de Notificaciones del sistema operativo de tu dispositivo. Sonarán a la hora exacta aunque estés sin internet, sin Wi-Fi ni datos móviles, o tengas la app cerrada.',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              height: 1.45,
-                            ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // --- 2. SECCIÓN: JORNADA LABORAL Y REFRIGERIO ---
+                        _buildSectionHeader(
+                          title: 'Jornada Laboral y Refrigerio',
+                          badge: 'TURNO REGULAR',
+                          isDark: isDark,
+                          textWhite: textWhite,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Renderizado responsivo (2 columnas en Tablets/Laptops, 1 columna en móviles)
+                        if (isWide) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildScheduleCard(
+                                  title: 'Entrada Mañana',
+                                  timeBadge: _formatTimeBadge(_morningEntryTime),
+                                  subtitle: 'Aviso para registrar ingreso matutino',
+                                  icon: Icons.wb_sunny_rounded,
+                                  iconBg: const Color(0xFF2D2313),
+                                  iconColor: const Color(0xFFF59E0B),
+                                  value: _notifMorningEntry && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_morning_entry', val),
+                                  onTimeTap: () => _editTime(
+                                    key: 'notif_morning_entry_time',
+                                    currentTime24: _morningEntryTime,
+                                    title: 'Entrada Mañana',
+                                  ),
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildScheduleCard(
+                                  title: 'Salida Mañana',
+                                  timeBadge: _formatTimeBadge(_morningExitTime),
+                                  subtitle: 'Recordatorio para refrigerio y colación',
+                                  icon: Icons.restaurant_rounded,
+                                  iconBg: const Color(0xFF0D2E24),
+                                  iconColor: emeraldPill,
+                                  value: _notifMorningExit && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_morning_exit', val),
+                                  onTimeTap: () => _editTime(
+                                    key: 'notif_morning_exit_time',
+                                    currentTime24: _morningExitTime,
+                                    title: 'Salida Mañana (Refrigerio)',
+                                  ),
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Título de Sección: Jornada Laboral
-                    _buildSectionHeader('JORNADA LABORAL Y REFRIGERIO'),
-                    const SizedBox(height: 8),
-
-                    Container(
-                      decoration: BoxDecoration(
-                        color: ThemeService.cardBg(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: ThemeService.cardBorder(context)),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildSwitchTile(
-                            title: 'Entrada Mañana (07:45 a. m.)',
-                            subtitle: 'Aviso para registrar ingreso al iniciar el día',
-                            icon: Icons.wb_sunny_outlined,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildScheduleCard(
+                                  title: 'Entrada Tarde',
+                                  timeBadge: _formatTimeBadge(_afternoonEntryTime),
+                                  subtitle: 'Reingreso puntual de jornada vespertina',
+                                  icon: Icons.access_time_filled_rounded,
+                                  iconBg: const Color(0xFF0E2B30),
+                                  iconColor: const Color(0xFF14B8A6),
+                                  value: _notifAfternoonEntry && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_afternoon_entry', val),
+                                  onTimeTap: () => _editTime(
+                                    key: 'notif_afternoon_entry_time',
+                                    currentTime24: _afternoonEntryTime,
+                                    title: 'Entrada Tarde',
+                                  ),
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildScheduleCard(
+                                  title: 'Salida Tarde',
+                                  timeBadge: _formatTimeBadge(_afternoonExitTime),
+                                  subtitle: 'Cierre oficial y firma de salida diaria',
+                                  icon: Icons.nightlight_round,
+                                  iconBg: const Color(0xFF1C2530),
+                                  iconColor: const Color(0xFF94A3B8),
+                                  value: _notifAfternoonExit && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_afternoon_exit', val),
+                                  onTimeTap: () => _editTime(
+                                    key: 'notif_afternoon_exit_time',
+                                    currentTime24: _afternoonExitTime,
+                                    title: 'Salida Tarde (Fin de Jornada)',
+                                  ),
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          _buildScheduleCard(
+                            title: 'Entrada Mañana',
+                            timeBadge: _formatTimeBadge(_morningEntryTime),
+                            subtitle: 'Aviso para registrar ingreso matutino',
+                            icon: Icons.wb_sunny_rounded,
+                            iconBg: const Color(0xFF2D2313),
                             iconColor: const Color(0xFFF59E0B),
-                            value: _notifMorningEntry,
-                            onChanged: (val) => _toggleSetting('notif_morning_entry', val),
+                            value: _notifMorningEntry && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_morning_entry', val),
+                            onTimeTap: () => _editTime(
+                              key: 'notif_morning_entry_time',
+                              currentTime24: _morningEntryTime,
+                              title: 'Entrada Mañana',
+                            ),
                             isDark: isDark,
-                            primary: primary,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
                           ),
-                          Divider(color: ThemeService.cardBorder(context), height: 1),
-                          _buildSwitchTile(
-                            title: 'Salida Mañana (01:00 p. m.)',
-                            subtitle: 'Recordatorio oportuno para marcar refrigerio',
-                            icon: Icons.restaurant_outlined,
-                            iconColor: const Color(0xFF10B981),
-                            value: _notifMorningExit,
-                            onChanged: (val) => _toggleSetting('notif_morning_exit', val),
+                          _buildScheduleCard(
+                            title: 'Salida Mañana',
+                            timeBadge: _formatTimeBadge(_morningExitTime),
+                            subtitle: 'Recordatorio para refrigerio y colación',
+                            icon: Icons.restaurant_rounded,
+                            iconBg: const Color(0xFF0D2E24),
+                            iconColor: emeraldPill,
+                            value: _notifMorningExit && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_morning_exit', val),
+                            onTimeTap: () => _editTime(
+                              key: 'notif_morning_exit_time',
+                              currentTime24: _morningExitTime,
+                              title: 'Salida Mañana (Refrigerio)',
+                            ),
                             isDark: isDark,
-                            primary: primary,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
                           ),
-                          Divider(color: ThemeService.cardBorder(context), height: 1),
-                          _buildSwitchTile(
-                            title: 'Entrada Tarde (02:00 p. m.)',
-                            subtitle: 'Aviso para registrar reingreso de la tarde',
-                            icon: Icons.access_time_rounded,
-                            iconColor: const Color(0xFF6366F1),
-                            value: _notifAfternoonEntry,
-                            onChanged: (val) => _toggleSetting('notif_afternoon_entry', val),
+                          _buildScheduleCard(
+                            title: 'Entrada Tarde',
+                            timeBadge: _formatTimeBadge(_afternoonEntryTime),
+                            subtitle: 'Reingreso puntual de jornada vespertina',
+                            icon: Icons.access_time_filled_rounded,
+                            iconBg: const Color(0xFF0E2B30),
+                            iconColor: const Color(0xFF14B8A6),
+                            value: _notifAfternoonEntry && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_afternoon_entry', val),
+                            onTimeTap: () => _editTime(
+                              key: 'notif_afternoon_entry_time',
+                              currentTime24: _afternoonEntryTime,
+                              title: 'Entrada Tarde',
+                            ),
                             isDark: isDark,
-                            primary: primary,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
                           ),
-                          Divider(color: ThemeService.cardBorder(context), height: 1),
-                          _buildSwitchTile(
-                            title: 'Salida Tarde (06:30 p. m.)',
-                            subtitle: 'Alerta oportuna de fin de jornada laboral',
-                            icon: Icons.nightlight_outlined,
-                            iconColor: const Color(0xFF8B5CF6),
-                            value: _notifAfternoonExit,
-                            onChanged: (val) => _toggleSetting('notif_afternoon_exit', val),
+                          _buildScheduleCard(
+                            title: 'Salida Tarde',
+                            timeBadge: _formatTimeBadge(_afternoonExitTime),
+                            subtitle: 'Cierre oficial y firma de salida diaria',
+                            icon: Icons.nightlight_round,
+                            iconBg: const Color(0xFF1C2530),
+                            iconColor: const Color(0xFF94A3B8),
+                            value: _notifAfternoonExit && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_afternoon_exit', val),
+                            onTimeTap: () => _editTime(
+                              key: 'notif_afternoon_exit_time',
+                              currentTime24: _afternoonExitTime,
+                              title: 'Salida Tarde (Fin de Jornada)',
+                            ),
                             isDark: isDark,
-                            primary: primary,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
                           ),
                         ],
-                      ),
-                    ),
 
-                    const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                    // Título de Sección: Eventos
-                    _buildSectionHeader('EVENTOS Y CAPACITACIONES'),
-                    const SizedBox(height: 8),
+                        // --- 3. SECCIÓN: EVENTOS Y CAPACITACIONES ---
+                        _buildSectionHeader(
+                          title: 'Eventos y Capacitaciones',
+                          badge: 'INSTITUCIONAL',
+                          isDark: isDark,
+                          textWhite: textWhite,
+                        ),
+                        const SizedBox(height: 10),
 
-                    Container(
-                      decoration: BoxDecoration(
-                        color: ThemeService.cardBg(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: ThemeService.cardBorder(context)),
-                      ),
-                      child: _buildSwitchTile(
-                        title: 'Eventos IIAP (1 hora antes)',
-                        subtitle: 'Notificación anticipada de talleres y eventos en los que participas',
-                        icon: Icons.event_available_rounded,
-                        iconColor: const Color(0xFFEC4899),
-                        value: _notifEvents,
-                        onChanged: (val) => _toggleSetting('notif_events', val),
-                        isDark: isDark,
-                        primary: primary,
-                      ),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Botón Probar Notificación Ahora
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: ThemeService.cardBg(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: ThemeService.cardBorder(context)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Diagnóstico del Sistema',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Envía una notificación de prueba inmediata a tu bandeja de entrada para verificar el sonido y los permisos.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 46,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        if (isWide) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildEventCard(
+                                  title: 'Avisos de Convocatoria',
+                                  badgeText: _leadMinutesBadgeText,
+                                  subtitle: 'Alerta previa de apertura de sala y a...',
+                                  icon: Icons.calendar_today_rounded,
+                                  iconBg: const Color(0xFF0E2B30),
+                                  iconColor: const Color(0xFF2DD4BF),
+                                  value: _notifEvents && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_events', val),
+                                  onBadgeTap: _selectLeadMinutes,
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
                               ),
-                              icon: _isTesting
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Icon(Icons.send_rounded, size: 18),
-                              label: Text(
-                                _isTesting ? 'Enviando prueba...' : 'Probar Notificación Ahora',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSimpleCard(
+                                  title: 'Rotación y Cierre de Evento',
+                                  subtitle: 'Recordar marcado final al concluir ponencia',
+                                  icon: Icons.notification_important_rounded,
+                                  iconBg: const Color(0xFF1C2530),
+                                  iconColor: const Color(0xFF94A3B8),
+                                  value: _notifEventClose && _isMasterEnabled,
+                                  onToggle: (val) => _toggleSetting('notif_event_close', val),
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
                               ),
-                              onPressed: _isTesting
-                                  ? null
-                                  : () async {
-                                      setState(() => _isTesting = true);
-                                      try {
-                                        await NotificationService.triggerTestNotification();
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: const Row(
-                                              children: [
-                                                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                                                SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    '¡Notificación de prueba enviada! Revisa la barra superior de tu dispositivo.',
-                                                    style: TextStyle(fontWeight: FontWeight.w500),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            backgroundColor: const Color(0xFF16A34A),
-                                            behavior: SnackBarBehavior.floating,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            duration: const Duration(seconds: 4),
-                                          ),
-                                        );
-                                      } catch (e) {
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Error: $e'),
-                                            backgroundColor: const Color(0xFFEF4444),
-                                          ),
-                                        );
-                                      } finally {
-                                        if (mounted) setState(() => _isTesting = false);
-                                      }
-                                    },
-                            ),
+                            ],
+                          ),
+                        ] else ...[
+                          _buildEventCard(
+                            title: 'Avisos de Convocatoria',
+                            badgeText: _leadMinutesBadgeText,
+                            subtitle: 'Alerta previa de apertura de sala y a...',
+                            icon: Icons.calendar_today_rounded,
+                            iconBg: const Color(0xFF0E2B30),
+                            iconColor: const Color(0xFF2DD4BF),
+                            value: _notifEvents && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_events', val),
+                            onBadgeTap: _selectLeadMinutes,
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
+                          ),
+                          _buildSimpleCard(
+                            title: 'Rotación y Cierre de Evento',
+                            subtitle: 'Recordar marcado final al concluir ponencia',
+                            icon: Icons.notification_important_rounded,
+                            iconBg: const Color(0xFF1C2530),
+                            iconColor: const Color(0xFF94A3B8),
+                            value: _notifEventClose && _isMasterEnabled,
+                            onToggle: (val) => _toggleSetting('notif_event_close', val),
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
                           ),
                         ],
-                      ),
+
+                        const SizedBox(height: 24),
+
+                        // --- 4. SECCIÓN: PREFERENCIAS DEL DISPOSITIVO ---
+                        _buildSectionHeader(
+                          title: 'Preferencias del Dispositivo',
+                          isDark: isDark,
+                          textWhite: textWhite,
+                        ),
+                        const SizedBox(height: 10),
+
+                        if (isWide) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildActionTile(
+                                  title: 'Tono de Alerta',
+                                  subtitle: _alertToneLabel,
+                                  icon: Icons.volume_up_rounded,
+                                  iconBg: const Color(0xFF14242B),
+                                  iconColor: const Color(0xFF14B8A6),
+                                  onTap: _selectTone,
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSimpleCard(
+                                  title: 'Vibración Háptica',
+                                  subtitle: 'Resonancia táctil doble al sonar alarma',
+                                  icon: Icons.vibration_rounded,
+                                  iconBg: const Color(0xFF14242B),
+                                  iconColor: const Color(0xFF14B8A6),
+                                  value: _notifHapticEnabled,
+                                  onToggle: (val) async {
+                                    await _toggleSetting('notif_haptic_enabled', val);
+                                    if (val) HapticFeedback.heavyImpact();
+                                  },
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                  textWhite: textWhite,
+                                  textSub: textSub,
+                                  accentGreen: accentGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                          _buildSimpleCard(
+                            title: 'Prioridad Alta en Modo Reposo',
+                            subtitle: 'Omite optimizaciones de batería del SO para alarmas exactas',
+                            icon: Icons.alarm_on_rounded,
+                            iconBg: const Color(0xFF14242B),
+                            iconColor: const Color(0xFF14B8A6),
+                            value: _notifHighPriorityDoze,
+                            onToggle: (val) => _toggleSetting('notif_high_priority_doze', val),
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
+                          ),
+                        ] else ...[
+                          _buildActionTile(
+                            title: 'Tono de Alerta',
+                            subtitle: _alertToneLabel,
+                            icon: Icons.volume_up_rounded,
+                            iconBg: const Color(0xFF14242B),
+                            iconColor: const Color(0xFF14B8A6),
+                            onTap: _selectTone,
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                          ),
+                          _buildSimpleCard(
+                            title: 'Vibración Háptica',
+                            subtitle: 'Resonancia táctil doble al sonar alarma',
+                            icon: Icons.vibration_rounded,
+                            iconBg: const Color(0xFF14242B),
+                            iconColor: const Color(0xFF14B8A6),
+                            value: _notifHapticEnabled,
+                            onToggle: (val) async {
+                              await _toggleSetting('notif_haptic_enabled', val);
+                              if (val) HapticFeedback.heavyImpact();
+                            },
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
+                          ),
+                          _buildSimpleCard(
+                            title: 'Prioridad Alta en Modo Reposo',
+                            subtitle: 'Omite optimizaciones de batería del SO para alarmas exactas',
+                            icon: Icons.alarm_on_rounded,
+                            iconBg: const Color(0xFF14242B),
+                            iconColor: const Color(0xFF14B8A6),
+                            value: _notifHighPriorityDoze,
+                            onToggle: (val) => _toggleSetting('notif_high_priority_doze', val),
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            cardBorder: cardBorder,
+                            textWhite: textWhite,
+                            textSub: textSub,
+                            accentGreen: accentGreen,
+                          ),
+                        ],
+
+                        const SizedBox(height: 28),
+
+                        // --- 5. FOOTER: SINCRONIZADO NATIVAMENTE ---
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.shield_outlined,
+                                size: 15,
+                                color: emeraldPill,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Sincronizado nativamente con el Administrador de Alarmas del SO',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: textSub.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
                     ),
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
     );
   }
 
-  Widget _buildTag({required IconData icon, required String label, required Color color}) {
+  // --- WIDGET HELPERS RESPONSIVOS ---
+
+  Widget _buildSectionHeader({
+    required String title,
+    String? badge,
+    required bool isDark,
+    required Color textWhite,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 3.5,
+          height: 15,
+          decoration: BoxDecoration(
+            color: const Color(0xFF10B981),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: textWhite,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+        if (badge != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            badge,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF64748B),
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildScheduleCard({
+    required String title,
+    required String timeBadge,
+    required String subtitle,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required bool value,
+    required ValueChanged<bool> onToggle,
+    required VoidCallback onTimeTap,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textWhite,
+    required Color textSub,
+    required Color accentGreen,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardBorder),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: textWhite,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: onTimeTap,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F3127),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              timeBadge,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            const Icon(
+                              Icons.edit_rounded,
+                              size: 11,
+                              color: Color(0xFF34D399),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textSub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+          CupertinoSwitch(
+            value: value,
+            activeTrackColor: accentGreen,
+            inactiveTrackColor: isDark ? const Color(0xFF1E2D33) : const Color(0xFFCBD5E1),
+            onChanged: onToggle,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF64748B),
-          letterSpacing: 0.8,
-        ),
+  Widget _buildEventCard({
+    required String title,
+    required String badgeText,
+    required String subtitle,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required bool value,
+    required ValueChanged<bool> onToggle,
+    required VoidCallback onBadgeTap,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textWhite,
+    required Color textSub,
+    required Color accentGreen,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: textWhite,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: onBadgeTap,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B2D33),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFF2D4750),
+                          ),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textSub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          CupertinoSwitch(
+            value: value,
+            activeTrackColor: accentGreen,
+            inactiveTrackColor: isDark ? const Color(0xFF1E2D33) : const Color(0xFFCBD5E1),
+            onChanged: onToggle,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSwitchTile({
+  Widget _buildSimpleCard({
     required String title,
     required String subtitle,
     required IconData icon,
+    required Color iconBg,
     required Color iconColor,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required ValueChanged<bool> onToggle,
     required bool isDark,
-    required Color primary,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textWhite,
+    required Color textSub,
+    required Color accentGreen,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardBorder),
+      ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(9),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: iconColor, size: 20),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.bold,
+                    color: textWhite,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    color: textSub,
                   ),
                 ),
               ],
             ),
           ),
-          Switch(
+          const SizedBox(width: 8),
+          CupertinoSwitch(
             value: value,
-            activeThumbColor: primary,
-            onChanged: onChanged,
+            activeTrackColor: accentGreen,
+            inactiveTrackColor: isDark ? const Color(0xFF1E2D33) : const Color(0xFFCBD5E1),
+            onChanged: onToggle,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required VoidCallback onTap,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textWhite,
+    required Color textSub,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textWhite,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textSub,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: textSub,
+              size: 22,
+            ),
+          ],
+        ),
       ),
     );
   }

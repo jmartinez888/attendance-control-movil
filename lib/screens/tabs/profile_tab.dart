@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../utils/responsive.dart';
@@ -8,6 +9,7 @@ import '../../services/auth_service.dart';
 import '../../services/users_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/wallpaper_service.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/api_client.dart';
 import '../../widgets/photo_viewer_dialog.dart';
 import '../../widgets/app_cached_avatar.dart';
@@ -15,6 +17,8 @@ import '../wallpaper_screen.dart';
 import '../login_screen.dart';
 import '../notifications_settings_screen.dart';
 import '../../widgets/leaf_logo.dart';
+import '../../widgets/profile_photo_cropper_dialog.dart';
+import '../../widgets/app_toast.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -25,7 +29,6 @@ class ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<ProfileTab> {
   final ImagePicker _picker = ImagePicker();
-  bool _isUploadingPhoto = false;
 
   bool _isEditingInstitutionalInfo = false;
   late final TextEditingController _officeController;
@@ -235,54 +238,75 @@ class _ProfileTabState extends State<ProfileTab> {
     try {
       final XFile? file = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 92,
       );
 
       if (file == null) return;
 
-      setState(() => _isUploadingPhoto = true);
+      final rawBytes = await file.readAsBytes();
+      if (!mounted) return;
 
-      final bytes = await file.readAsBytes();
-      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      // Abrir el recortador de foto interactivo y responsivo
+      final croppedBytes = await ProfilePhotoCropperDialog.show(
+        context: context,
+        imageBytes: rawBytes,
+      );
 
-      await UsersService.uploadPhotoBase64(base64Image);
+      // Si el usuario canceló el recorte, no subir
+      if (croppedBytes == null || !mounted) return;
+
+      final base64Image = 'data:image/png;base64,${base64Encode(croppedBytes)}';
+
+      // 1. CAMBIO INSTANTÁNEO (0 ms, estilo WhatsApp):
+      // Aplicar el cambio al avatar de inmediato para que se refleje sin demoras
+      final currentUser = StorageService.currentUser;
+      if (currentUser != null) {
+        await StorageService.updateCurrentUser(currentUser.copyWith(photoUrl: base64Image));
+      }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Text('Foto actualizada'),
-            ],
-          ),
-          backgroundColor: ThemeService.primaryColor(context),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppToast.show(
+        context,
+        title: 'Foto de perfil actualizada',
+        subtitle: 'Tu nueva foto ya está visible.',
+        icon: Icons.check_circle_rounded,
+        accentColor: const Color(0xFF10B981),
       );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+
+      // 2. Sincronización transparente en segundo plano con el servidor:
+      try {
+        final newRemoteUrl = await UsersService.uploadPhotoBase64(base64Image, updateStorage: false);
+        if (newRemoteUrl.isNotEmpty && mounted) {
+          // Pre-calentar la imagen remota en memoria para que no haya parpadeo negro ni descarga pendiente
+          try {
+            final provider = appCachedImageProvider(newRemoteUrl);
+            if (provider != null) {
+              await precacheImage(provider, context);
+            }
+          } catch (_) {}
+          final userNow = StorageService.currentUser;
+          if (userNow != null) {
+            await StorageService.updateCurrentUser(userNow.copyWith(photoUrl: newRemoteUrl));
+          }
+        }
+      } on TimeoutException {
+        debugPrint('Upload timed out, keeping local photo');
+      } on ApiException catch (e) {
+        debugPrint('Sync ApiException: ${e.message}');
+      } catch (err) {
+        debugPrint('Sync error: $err');
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al subir foto: $e'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppToast.show(
+        context,
+        title: 'Error al cambiar foto',
+        subtitle: '$e',
+        icon: Icons.error_outline_rounded,
+        accentColor: const Color(0xFFEF4444),
       );
-    } finally {
-      if (mounted) setState(() => _isUploadingPhoto = false);
     }
   }
 
@@ -1353,42 +1377,38 @@ class _ProfileTabState extends State<ProfileTab> {
                                       width: 2.5,
                                     ),
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 46,
+                                  child: AppCachedAvatar(
+                                    imageUrl: user.photoUrl,
+                                    name: user.fullName,
+                                    size: 92,
                                     backgroundColor: isDark ? const Color(0xFF16202A) : const Color(0xFFE2E8F0),
-                                    backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
-                                        ? appCachedImageProvider(user.photoUrl!)
-                                        : null,
-                                    child: user.photoUrl == null || user.photoUrl!.isEmpty
-                                        ? Text(
-                                            user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
-                                            style: TextStyle(
-                                              fontSize: 34,
-                                              fontWeight: FontWeight.bold,
-                                              color: isDark ? Colors.white : ThemeService.primaryColor(context),
-                                            ),
-                                          )
-                                        : null,
+                                    textColor: isDark ? Colors.white : ThemeService.primaryColor(context),
                                   ),
                                 ),
                               ),
                             ),
 
-                            // Punto verde superior derecho (En línea)
+                            // Punto verde superior derecho (En línea reactivo a internet)
                             Positioned(
                               top: 2,
                               right: 2,
-                              child: Container(
-                                width: 15,
-                                height: 15,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF22C55E),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: _cardBg(context),
-                                    width: 2.5,
-                                  ),
-                                ),
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: ConnectivityService.isOnlineNotifier,
+                                builder: (context, isOnline, _) {
+                                  if (!isOnline) return const SizedBox.shrink();
+                                  return Container(
+                                    width: 15,
+                                    height: 15,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF22C55E),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: _cardBg(context),
+                                        width: 2.5,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
 
@@ -1397,7 +1417,7 @@ class _ProfileTabState extends State<ProfileTab> {
                               bottom: 0,
                               right: 0,
                               child: GestureDetector(
-                                onTap: _isUploadingPhoto ? null : _showPhotoOptions,
+                                onTap: _showPhotoOptions,
                                 child: Container(
                                   padding: const EdgeInsets.all(7),
                                   decoration: BoxDecoration(
@@ -1408,13 +1428,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                       width: 2.5,
                                     ),
                                   ),
-                                  child: _isUploadingPhoto
-                                      ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        )
-                                      : const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
+                                  child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
                                 ),
                               ),
                             ),

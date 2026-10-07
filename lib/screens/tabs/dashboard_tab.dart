@@ -21,6 +21,8 @@ import '../events/events_list_screen.dart';
 import '../qr/qr_display_screen.dart';
 import '../qr/qr_scanner_screen.dart';
 import '../attendance/facial_attendance_screen.dart';
+import '../notifications_settings_screen.dart';
+import '../../widgets/app_toast.dart';
 import '../../config/api_config.dart';
 import '../../widgets/photo_viewer_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -3854,69 +3856,14 @@ _buildCircularMuteBell(context),
   }
 
   void _showNotificationFeedback(BuildContext context, bool muted) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    final primaryColor = ThemeService.primaryColor(context);
-    final accentColor = muted ? const Color(0xFFEF4444) : primaryColor;
-    final bgCard = muted ? const Color(0xFF241014) : const Color(0xFF131D24);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-                border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1.2),
-              ),
-              child: Icon(
-                muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
-                color: accentColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    muted ? 'Notificaciones silenciadas' : 'Notificaciones activadas',
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    muted
-                        ? 'No recibirás alertas ni avisos de la app.'
-                        : 'Recibirás avisos de jornada y eventos en tiempo real.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFFE2E8F0),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: bgCard,
-        behavior: SnackBarBehavior.floating,
-        elevation: 8,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: accentColor, width: 1.5),
-        ),
-        duration: const Duration(milliseconds: 2400),
-      ),
+    AppToast.show(
+      context,
+      title: muted ? 'Notificaciones silenciadas' : 'Notificaciones activadas',
+      subtitle: muted
+          ? 'Alertas en pausa en este dispositivo.'
+          : 'Alertas y turnos activos en tiempo real.',
+      icon: muted ? Icons.notifications_off_rounded : Icons.notifications_active_rounded,
+      accentColor: muted ? const Color(0xFFEF4444) : const Color(0xFF10B981),
     );
   }
 
@@ -3924,22 +3871,31 @@ _buildCircularMuteBell(context),
     return ValueListenableBuilder<bool>(
       valueListenable: NotificationService.isMutedNotifier,
       builder: (context, isMuted, _) {
-        return IconButton(
-          onPressed: () async {
-            final muted = await NotificationService.toggleMute();
-            if (context.mounted) {
-              _showNotificationFeedback(context, muted);
-            }
+        return GestureDetector(
+          onLongPress: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const NotificationsSettingsScreen(),
+              ),
+            );
           },
-          icon: Icon(
-            isMuted ? Icons.notifications_off_rounded : Icons.notifications_none_rounded,
-            color: isMuted ? const Color(0xFFEF4444) : Colors.white,
-            size: iconSize,
+          child: IconButton(
+            onPressed: () async {
+              final muted = await NotificationService.toggleMute();
+              if (context.mounted) {
+                _showNotificationFeedback(context, muted);
+              }
+            },
+            icon: Icon(
+              isMuted ? Icons.notifications_off_rounded : Icons.notifications_none_rounded,
+              color: isMuted ? const Color(0xFFEF4444) : Colors.white,
+              size: iconSize,
+            ),
+            padding: padding,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            splashRadius: 20,
+            tooltip: isMuted ? 'Notificaciones silenciadas (Tocar para activar)' : 'Notificaciones activadas (Tocar para silenciar)',
           ),
-          padding: padding,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          splashRadius: 20,
-          tooltip: isMuted ? 'Notificaciones silenciadas (Tocar para activar)' : 'Notificaciones activadas (Tocar para silenciar)',
         );
       },
     );
@@ -3955,6 +3911,13 @@ _buildCircularMuteBell(context),
             if (context.mounted) {
               _showNotificationFeedback(context, muted);
             }
+          },
+          onLongPress: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const NotificationsSettingsScreen(),
+              ),
+            );
           },
           borderRadius: BorderRadius.circular(20),
           child: Stack(
@@ -4175,13 +4138,7 @@ _buildCircularMuteBell(context),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(35),
                     child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
-                        ? CachedNetworkImage(
-                            imageUrl: user.photoUrl!,
-                            fit: BoxFit.cover,
-                            fadeInDuration: const Duration(milliseconds: 150),
-                            placeholder: (_, __) => _buildDefaultOvalAvatar(user),
-                            errorWidget: (_, __, ___) => _buildDefaultOvalAvatar(user),
-                          )
+                        ? _buildSafeAvatarImage(user.photoUrl!, placeholder: _buildDefaultOvalAvatar(user))
                         : _buildDefaultOvalAvatar(user),
                   ),
                 ),
@@ -4191,11 +4148,12 @@ _buildCircularMuteBell(context),
                   child: ValueListenableBuilder<bool>(
                     valueListenable: ConnectivityService.isOnlineNotifier,
                     builder: (context, isOnline, _) {
+                      if (!isOnline) return const SizedBox.shrink();
                       return Container(
                         width: 13,
                         height: 13,
                         decoration: BoxDecoration(
-                          color: isOnline ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          color: const Color(0xFF10B981),
                           shape: BoxShape.circle,
                           border: Border.all(color: _cardBg(context), width: 2.2),
                         ),
@@ -4273,6 +4231,25 @@ _buildCircularMuteBell(context),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSafeAvatarImage(String photoUrl, {required Widget placeholder}) {
+    if (photoUrl.startsWith('data:image')) {
+      final comma = photoUrl.indexOf(',');
+      if (comma != -1) {
+        try {
+          final bytes = base64Decode(photoUrl.substring(comma + 1));
+          return Image.memory(bytes, fit: BoxFit.cover);
+        } catch (_) {}
+      }
+    }
+    return CachedNetworkImage(
+      imageUrl: photoUrl,
+      fit: BoxFit.cover,
+      fadeInDuration: const Duration(milliseconds: 150),
+      placeholder: (_, __) => placeholder,
+      errorWidget: (_, __, ___) => placeholder,
     );
   }
 

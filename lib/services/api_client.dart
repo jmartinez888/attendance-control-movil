@@ -86,7 +86,12 @@ class ApiClient {
     }
   }
 
-  static Future<dynamic> post(String url, {Map<String, dynamic>? body, bool requiresAuth = true}) async {
+  static Future<dynamic> post(
+    String url, {
+    Map<String, dynamic>? body,
+    bool requiresAuth = true,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
     try {
       final headers = await _headers(requiresAuth: requiresAuth);
       final response = await http
@@ -95,7 +100,7 @@ class ApiClient {
             headers: headers,
             body: body != null ? jsonEncode(body) : null,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(timeout);
 
       // Si el token expiró, re-autenticar de fondo silenciosamente y reintentar 1 vez
       if (response.statusCode == 401 && requiresAuth) {
@@ -108,7 +113,7 @@ class ApiClient {
                 headers: retryHeaders,
                 body: body != null ? jsonEncode(body) : null,
               )
-              .timeout(const Duration(seconds: 15));
+              .timeout(timeout);
           return _processResponse(retryResponse);
         }
       }

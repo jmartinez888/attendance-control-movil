@@ -9,8 +9,7 @@ import 'services/attendance_service.dart';
 import 'services/schedule_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/notification_service.dart';
-import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/splash_gate_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -236,10 +235,7 @@ class MyApp extends StatelessWidget {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          home: (StorageService.currentUser != null ||
-                  (StorageService.tokenSync != null && StorageService.tokenSync!.isNotEmpty))
-              ? const HomeScreen()
-              : const LoginScreen(),
+          home: const SplashGateScreen(),
         );
       },
     );

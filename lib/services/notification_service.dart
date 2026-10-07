@@ -139,6 +139,7 @@ class NotificationService {
     String channelId = CHANNEL_ATTENDANCE_ID,
     String channelName = CHANNEL_ATTENDANCE_NAME,
     String channelDescription = CHANNEL_ATTENDANCE_DESC,
+    bool enableVibration = true,
   }) {
     final androidDetails = AndroidNotificationDetails(
       channelId,
@@ -148,7 +149,7 @@ class NotificationService {
       priority: Priority.high,
       ticker: 'Control de Asistencia IIAP',
       icon: '@mipmap/ic_launcher',
-      enableVibration: true,
+      enableVibration: enableVibration,
       playSound: true,
       fullScreenIntent: false,
       category: AndroidNotificationCategory.reminder,
@@ -302,53 +303,80 @@ class NotificationService {
     final afternoonEntryEnabled = prefs.getBool('notif_afternoon_entry') ?? true;
     final afternoonExitEnabled = prefs.getBool('notif_afternoon_exit') ?? true;
 
-    // 1. Entrada Mañana (07:45 AM)
+    // Horarios predeterminados configurados oficialmente por el Inge:
+    // Mañana: Alarma 07:45 AM (aviso oportuno antes del ingreso institucional)
+    // Salida Mañana: 13:00 PM (01:00 PM - refrigerio)
+    // Entrada Tarde: 14:00 PM (02:00 PM - hora oficial actualizada por el Inge)
+    // Salida Tarde: 18:30 PM (06:30 PM - fin de jornada laboral diaria)
+    final morningEntryTime = prefs.getString('notif_morning_entry_time') ?? '07:45';
+    final morningExitTime = prefs.getString('notif_morning_exit_time') ?? '13:00';
+    final afternoonEntryTime = prefs.getString('notif_afternoon_entry_time') ?? '14:00';
+    final afternoonExitTime = prefs.getString('notif_afternoon_exit_time') ?? '18:30';
+
+    final mInParts = morningEntryTime.split(':');
+    final mOutParts = morningExitTime.split(':');
+    final aInParts = afternoonEntryTime.split(':');
+    final aOutParts = afternoonExitTime.split(':');
+
+    final mInH = int.tryParse(mInParts.first) ?? 7;
+    final mInM = int.tryParse(mInParts.length > 1 ? mInParts[1] : '45') ?? 45;
+
+    final mOutH = int.tryParse(mOutParts.first) ?? 13;
+    final mOutM = int.tryParse(mOutParts.length > 1 ? mOutParts[1] : '0') ?? 0;
+
+    final aInH = int.tryParse(aInParts.first) ?? 14;
+    final aInM = int.tryParse(aInParts.length > 1 ? aInParts[1] : '0') ?? 0;
+
+    final aOutH = int.tryParse(aOutParts.first) ?? 18;
+    final aOutM = int.tryParse(aOutParts.length > 1 ? aOutParts[1] : '30') ?? 30;
+
+    // 1. Entrada Mañana
     if (morningEntryEnabled) {
       await _scheduleDailyAlarm(
         id: ID_MORNING_ENTRY,
         title: 'IIAP • Entrada Turno Mañana',
         body: '¡Buenos días! Recuerda registrar tu asistencia de ingreso al IIAP.',
-        hour: 7,
-        minute: 45,
+        hour: mInH,
+        minute: mInM,
       );
     } else {
       await cancel(ID_MORNING_ENTRY);
     }
 
-    // 2. Salida Mañana (13:00 PM)
+    // 2. Salida Mañana
     if (morningExitEnabled) {
       await _scheduleDailyAlarm(
         id: ID_MORNING_EXIT,
         title: 'IIAP • Salida Turno Mañana',
         body: '¡Hora de refrigerio! Recuerda marcar tu salida del turno de la mañana.',
-        hour: 13,
-        minute: 0,
+        hour: mOutH,
+        minute: mOutM,
       );
     } else {
       await cancel(ID_MORNING_EXIT);
     }
 
-    // 3. Entrada Tarde (14:00 PM)
+    // 3. Entrada Tarde
     if (afternoonEntryEnabled) {
       await _scheduleDailyAlarm(
         id: ID_AFTERNOON_ENTRY,
         title: 'IIAP • Entrada Turno Tarde',
         body: 'Buenas tardes. Recuerda registrar tu asistencia de ingreso de la tarde.',
-        hour: 14,
-        minute: 0,
+        hour: aInH,
+        minute: aInM,
       );
     } else {
       await cancel(ID_AFTERNOON_ENTRY);
     }
 
-    // 4. Salida Tarde (18:30 PM)
+    // 4. Salida Tarde
     if (afternoonExitEnabled) {
       await _scheduleDailyAlarm(
         id: ID_AFTERNOON_EXIT,
         title: 'IIAP • Salida Turno Tarde',
         body: '¡Fin de jornada laboral! Recuerda marcar tu salida del turno de la tarde.',
-        hour: 18,
-        minute: 30,
+        hour: aOutH,
+        minute: aOutM,
       );
     } else {
       await cancel(ID_AFTERNOON_EXIT);
@@ -376,8 +404,9 @@ class NotificationService {
       final id1Hour = ID_EVENT_BASE + hash;
       final id15Min = ID_EVENT_BASE + 10000 + hash;
 
+      final leadMinutes = prefs.getInt('notif_events_lead_minutes') ?? 15;
       final oneHourBefore = startDate.subtract(const Duration(hours: 1));
-      final fifteenMinBefore = startDate.subtract(const Duration(minutes: 15));
+      final leadBefore = startDate.subtract(Duration(minutes: leadMinutes));
 
       final details = _getNotificationDetails(
         channelId: CHANNEL_EVENTS_ID,
@@ -385,8 +414,8 @@ class NotificationService {
         channelDescription: CHANNEL_EVENTS_DESC,
       );
 
-      // Notificación 1 hora antes
-      if (oneHourBefore.isAfter(now)) {
+      // Notificación 1 hora antes (si el lead time configurado no es ya de 60 minutos)
+      if (leadMinutes != 60 && oneHourBefore.isAfter(now)) {
         final tzTime = tz.TZDateTime.from(oneHourBefore, tz.local);
         try {
           await _notificationsPlugin.zonedSchedule(
@@ -413,14 +442,15 @@ class NotificationService {
         }
       }
 
-      // Notificación 15 minutos antes
-      if (fifteenMinBefore.isAfter(now)) {
-        final tzTime = tz.TZDateTime.from(fifteenMinBefore, tz.local);
+      // Notificación anticipada según preferencia (por defecto 15 minutos antes)
+      if (leadBefore.isAfter(now)) {
+        final tzTime = tz.TZDateTime.from(leadBefore, tz.local);
+        final leadText = leadMinutes >= 60 ? '${leadMinutes ~/ 60} hora' : '$leadMinutes minutos';
         try {
           await _notificationsPlugin.zonedSchedule(
             id15Min,
             '¡Tu evento IIAP comienza pronto!',
-            '"$title" inicia en 15 minutos en $location.',
+            '"$title" inicia en $leadText en $location.',
             tzTime,
             details,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -431,7 +461,7 @@ class NotificationService {
           await _notificationsPlugin.zonedSchedule(
             id15Min,
             '¡Tu evento IIAP comienza pronto!',
-            '"$title" inicia en 15 minutos en $location.',
+            '"$title" inicia en $leadText en $location.',
             tzTime,
             details,
             androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

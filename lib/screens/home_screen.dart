@@ -11,6 +11,7 @@ import '../services/theme_service.dart';
 import '../services/notification_service.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_cached_avatar.dart';
+import '../widgets/app_toast.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -102,49 +103,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // 1. Detectar revocación de cargo de supervisor en tiempo real
       if (wasSupervisor && !isNowSupervisor && !isNowAdmin) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.person_outline_rounded, color: Colors.white, size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Tu cargo de supervisor ha concluido. Has pasado automáticamente a tu usuario normal (Personal).',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF1E293B),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: const Duration(seconds: 4),
-          ),
+        AppToast.show(
+          context,
+          title: 'Cargo de supervisor concluido',
+          subtitle: 'Has pasado automáticamente a tu vista normal de Colaborador.',
+          icon: Icons.person_outline_rounded,
+          accentColor: const Color(0xFF64748B),
         );
       } else if (!wasSupervisor && !wasAdmin && isNowSupervisor) {
         // 2. Detectar asignación de supervisor en segundo plano
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.verified_rounded, color: Colors.white, size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '¡Ahora eres Supervisor! Se han habilitado tus permisos para generar QR.',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF15803D),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            duration: const Duration(seconds: 4),
-          ),
+        AppToast.show(
+          context,
+          title: '¡Ahora eres Supervisor!',
+          subtitle: 'Se han habilitado tus permisos para generar QR y supervisar.',
+          icon: Icons.verified_rounded,
+          accentColor: const Color(0xFF15803D),
         );
       }
     } catch (_) {

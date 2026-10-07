@@ -62,14 +62,15 @@ class UsersService {
   }
 
   // Subir foto de perfil en Base64
-  static Future<String> uploadPhotoBase64(String base64Image) async {
+  static Future<String> uploadPhotoBase64(String base64Image, {bool updateStorage = true}) async {
     final response = await ApiClient.post(
       ApiConfig.uploadPhotoBase64,
       body: {'image_base64': base64Image},
+      timeout: const Duration(seconds: 60),
     );
     final photoUrl = response['photo_url']?.toString() ?? '';
     final currentUser = StorageService.currentUserNotifier.value;
-    if (currentUser != null && photoUrl.isNotEmpty) {
+    if (updateStorage && currentUser != null && photoUrl.isNotEmpty) {
       await StorageService.updateCurrentUser(currentUser.copyWith(photoUrl: photoUrl));
     }
     return photoUrl;

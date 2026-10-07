@@ -1,10 +1,22 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 /// Proveedor de imagen con caché en disco y memoria de alto rendimiento
 ImageProvider? appCachedImageProvider(String? imageUrl) {
   if (imageUrl == null || imageUrl.trim().isEmpty) return null;
-  return CachedNetworkImageProvider(imageUrl.trim());
+  final clean = imageUrl.trim();
+  if (clean.startsWith('data:image')) {
+    final commaIndex = clean.indexOf(',');
+    if (commaIndex != -1) {
+      try {
+        final bytes = base64Decode(clean.substring(commaIndex + 1));
+        return MemoryImage(bytes);
+      } catch (_) {}
+    }
+  }
+  return CachedNetworkImageProvider(clean);
 }
 
 /// Widget optimizado para fotos de perfil con almacenamiento en caché persistente en disco
@@ -54,39 +66,71 @@ class AppCachedAvatar extends StatelessWidget {
     Widget avatarContent;
 
     if (validUrl) {
-      avatarContent = CachedNetworkImage(
-        imageUrl: imageUrl!.trim(),
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        memCacheWidth: (size * 2.5).toInt(),
-        memCacheHeight: (size * 2.5).toInt(),
-        fadeInDuration: const Duration(milliseconds: 150),
-        placeholder: (context, url) => Container(
-          color: effectiveBg,
-          alignment: Alignment.center,
-          child: Text(
-            size <= 28 ? _initial : _twoInitials,
-            style: TextStyle(
-              color: effectiveText,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.38,
+      final clean = imageUrl!.trim();
+      if (clean.startsWith('data:image')) {
+        final commaIndex = clean.indexOf(',');
+        Uint8List? memoryBytes;
+        if (commaIndex != -1) {
+          try {
+            memoryBytes = base64Decode(clean.substring(commaIndex + 1));
+          } catch (_) {}
+        }
+        if (memoryBytes != null) {
+          avatarContent = Image.memory(
+            memoryBytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          );
+        } else {
+          avatarContent = Container(
+            color: effectiveBg,
+            alignment: Alignment.center,
+            child: Text(
+              size <= 28 ? _initial : _twoInitials,
+              style: TextStyle(
+                color: effectiveText,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.38,
+              ),
+            ),
+          );
+        }
+      } else {
+        avatarContent = CachedNetworkImage(
+          imageUrl: clean,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          memCacheWidth: (size * 2.5).toInt(),
+          memCacheHeight: (size * 2.5).toInt(),
+          fadeInDuration: const Duration(milliseconds: 150),
+          placeholder: (context, url) => Container(
+            color: effectiveBg,
+            alignment: Alignment.center,
+            child: Text(
+              size <= 28 ? _initial : _twoInitials,
+              style: TextStyle(
+                color: effectiveText,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.38,
+              ),
             ),
           ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: effectiveBg,
-          alignment: Alignment.center,
-          child: Text(
-            size <= 28 ? _initial : _twoInitials,
-            style: TextStyle(
-              color: effectiveText,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.38,
+          errorWidget: (context, url, error) => Container(
+            color: effectiveBg,
+            alignment: Alignment.center,
+            child: Text(
+              size <= 28 ? _initial : _twoInitials,
+              style: TextStyle(
+                color: effectiveText,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.38,
+              ),
             ),
           ),
-        ),
-      );
+        );
+      }
     } else {
       avatarContent = Container(
         width: size,

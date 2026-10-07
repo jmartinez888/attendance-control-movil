@@ -172,6 +172,12 @@ class AuthService {
   static Future<UserModel> getProfile() async {
     final response = await ApiClient.get(ApiConfig.authMe);
     final user = UserModel.fromJson(response as Map<String, dynamic>);
+    final current = StorageService.currentUser;
+    if (current?.photoUrl != null && current!.photoUrl!.startsWith('data:image')) {
+      final preservedUser = user.copyWith(photoUrl: current.photoUrl);
+      await StorageService.updateCurrentUser(preservedUser);
+      return preservedUser;
+    }
     await StorageService.updateCurrentUser(user);
     return user;
   }
