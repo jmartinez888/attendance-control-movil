@@ -56,21 +56,12 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
         }
         return;
       }
-      // Priorizar la cámara frontal para reconocimiento facial
-      final frontCamera = _cameras!.firstWhere(
-        (cam) => cam.lensDirection == CameraLensDirection.front,
+      // Priorizar la cámara trasera para reconocimiento facial según requerimiento institucional
+      final backCamera = _cameras!.firstWhere(
+        (cam) => cam.lensDirection == CameraLensDirection.back,
         orElse: () => _cameras!.first,
       );
-      _cameraController = CameraController(
-        frontCamera,
-        ResolutionPreset.medium, // Resolución ideal: rápida y ligera
-        enableAudio: false,
-      );
-      await _cameraController!.initialize();
-      if (!mounted) return;
-      setState(() {});
-      // Iniciar el ciclo de captura automática con throttling (cada 1.8 segundos)
-      _startContinuousFaceScanning();
+      await _startCamera(backCamera);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -79,6 +70,33 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
         });
       }
     }
+  }
+
+  Future<void> _startCamera(CameraDescription camera) async {
+    _throttlingTimer?.cancel();
+    if (_cameraController != null) {
+      await _cameraController!.dispose();
+    }
+    _cameraController = CameraController(
+      camera,
+      ResolutionPreset.medium, // Resolución ideal: rápida y ligera
+      enableAudio: false,
+    );
+    await _cameraController!.initialize();
+    if (!mounted) return;
+    setState(() {});
+    // Iniciar el ciclo de captura automática con throttling (cada 1.8 segundos)
+    _startContinuousFaceScanning();
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras == null || _cameras!.length < 2 || _cameraController == null) return;
+    final currentLens = _cameraController!.description.lensDirection;
+    final nextCamera = _cameras!.firstWhere(
+      (cam) => cam.lensDirection != currentLens,
+      orElse: () => _cameras!.first,
+    );
+    await _startCamera(nextCamera);
   }
 
   /// Throttling obligatorio: 1 frame cada 1.8s para no saturar la red ni el backend
@@ -195,6 +213,59 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = StorageService.currentUser;
+    if (user != null && !user.canUseFacialRecognition) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF091417),
+        appBar: AppBar(
+          title: const Text("Control Biométrico Facial", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          backgroundColor: const Color(0xFF0F1E24),
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7F1D1D).withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
+                  ),
+                  child: const Icon(Icons.shield_outlined, color: Color(0xFFEF4444), size: 48),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Acceso Restringido',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Tu rol no tiene autorización para operar el Control Biométrico Facial.\nEsta función es de uso exclusivo para Administradores, Supervisores y Gestores.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.45),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: const Color(0xFF091417),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Volver al Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -203,12 +274,26 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
         ),
       );
     }
+
+    final isFrontCamera = _cameraController?.description.lensDirection == CameraLensDirection.front;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Control Biométrico Facial", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Control Biométrico Facial", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: Colors.black87,
         elevation: 0,
+        actions: [
+          if (_cameras != null && _cameras!.length > 1)
+            IconButton(
+              icon: Icon(
+                isFrontCamera ? Icons.camera_front_rounded : Icons.camera_rear_rounded,
+                color: const Color(0xFF34D399),
+              ),
+              tooltip: isFrontCamera ? 'Cambiar a cámara trasera' : 'Cambiar a cámara frontal',
+              onPressed: _switchCamera,
+            ),
+        ],
       ),
       body: Stack(
         alignment: Alignment.center,
@@ -226,49 +311,81 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
                   : (_isProcessingFrame ? Colors.amberAccent : Colors.white),
             ),
           ),
-          // 3. Panel inferior de feedback visual
+          // 3. Indicador de cámara activa en la parte superior
           Positioned(
-            bottom: 40,
-            left: 20,
-            right: 20,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            top: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.85),
+                color: Colors.black.withValues(alpha: 0.65),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _statusColor, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: _statusColor.withValues(alpha: 0.3),
-                    blurRadius: 15,
-                    spreadRadius: 2,
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isFrontCamera ? Icons.camera_front_rounded : Icons.camera_rear_rounded,
+                    color: const Color(0xFF34D399),
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isFrontCamera ? 'Cámara Frontal' : 'Cámara Trasera (Oficial)',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  Icon(_statusIcon, color: _statusColor, size: 28),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      _statusMessage,
-                      style: TextStyle(
-                        color: _statusColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+            ),
+          ),
+          // 4. Panel inferior de feedback visual (Totalmente responsivo y anti-overflow)
+          Positioned(
+            bottom: 24,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              top: false,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _statusColor, width: 1.8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _statusColor.withValues(alpha: 0.25),
+                      blurRadius: 14,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(_statusIcon, color: _statusColor, size: 26),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _statusMessage,
+                        style: TextStyle(
+                          color: _statusColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (_isProcessingFrame && !_attendanceSuccess)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent),
-                    ),
-                ],
+                    if (_isProcessingFrame && !_attendanceSuccess) ...[
+                      const SizedBox(width: 10),
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
