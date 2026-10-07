@@ -45,12 +45,13 @@ class EventService {
           // Programar recordatorios offline en el SO solo cuando la lista cambia
           final now = DateTime.now();
           for (final evt in list) {
-            if (evt.startDate.isAfter(now)) {
+            if (evt.startDate.isAfter(now) || evt.endDate.isAfter(now)) {
               NotificationService.scheduleEventReminders(
                 eventId: evt.id,
                 title: evt.title,
                 location: evt.location,
                 startDate: evt.startDate,
+                endDate: evt.endDate,
               );
             }
           }

@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/app_cached_avatar.dart';
+import '../services/event_service.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -153,6 +154,11 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
         await NotificationService.cancelAll();
       } else {
         await NotificationService.scheduleAllAttendanceReminders();
+        await NotificationService.syncEventSettings(
+          eventsEnabled: _notifEvents,
+          closeEnabled: _notifEventClose,
+          events: EventService.eventsNotifier.value,
+        );
       }
 
       if (_notifHapticEnabled) {
@@ -183,7 +189,15 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
       }
 
       if (_isMasterEnabled) {
-        await NotificationService.scheduleAllAttendanceReminders();
+        if (key.startsWith('notif_morning_') || key.startsWith('notif_afternoon_')) {
+          await NotificationService.scheduleAllAttendanceReminders();
+        } else if (key == 'notif_events' || key == 'notif_event_close') {
+          await NotificationService.syncEventSettings(
+            eventsEnabled: key == 'notif_events' ? value : _notifEvents,
+            closeEnabled: key == 'notif_event_close' ? value : _notifEventClose,
+            events: EventService.eventsNotifier.value,
+          );
+        }
       }
     } catch (_) {}
   }
@@ -340,6 +354,13 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setInt('notif_events_lead_minutes', mins);
                         if (mounted) setState(() => _leadMinutes = mins);
+                        if (_isMasterEnabled && _notifEvents) {
+                          await NotificationService.syncEventSettings(
+                            eventsEnabled: _notifEvents,
+                            closeEnabled: _notifEventClose,
+                            events: EventService.eventsNotifier.value,
+                          );
+                        }
                         if (_notifHapticEnabled) HapticFeedback.selectionClick();
                       },
                     );

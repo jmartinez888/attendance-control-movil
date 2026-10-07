@@ -383,13 +383,14 @@ class NotificationService {
     }
   }
 
-  /// Programa recordatorios para un evento institucional (1h antes y 15m antes)
+  /// Programa recordatorios para un evento institucional (1h antes, 15m antes y cierre)
   /// También se guarda en el SO para dispararse offline y fuera de la app
   static Future<void> scheduleEventReminders({
     required String eventId,
     required String title,
     required String location,
     required DateTime startDate,
+    DateTime? endDate,
   }) async {
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
     if (isMutedNotifier.value) return;
@@ -397,61 +398,103 @@ class NotificationService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final eventsEnabled = prefs.getBool('notif_events') ?? true;
-      if (!eventsEnabled) return;
+      final closeEnabled = prefs.getBool('notif_event_close') ?? true;
 
       final now = DateTime.now();
       final hash = (eventId.hashCode % 10000).abs();
       final id1Hour = ID_EVENT_BASE + hash;
       final id15Min = ID_EVENT_BASE + 10000 + hash;
+      final idClose = ID_EVENT_BASE + 20000 + hash;
 
-      final leadMinutes = prefs.getInt('notif_events_lead_minutes') ?? 15;
-      final oneHourBefore = startDate.subtract(const Duration(hours: 1));
-      final leadBefore = startDate.subtract(Duration(minutes: leadMinutes));
+      // 1. AVISOS DE CONVOCATORIA (1h antes y anticipación configurada)
+      if (!eventsEnabled) {
+        await cancel(id1Hour);
+        await cancel(id15Min);
+      } else {
+        final leadMinutes = prefs.getInt('notif_events_lead_minutes') ?? 15;
+        final oneHourBefore = startDate.subtract(const Duration(hours: 1));
+        final leadBefore = startDate.subtract(Duration(minutes: leadMinutes));
 
-      final details = _getNotificationDetails(
-        channelId: CHANNEL_EVENTS_ID,
-        channelName: CHANNEL_EVENTS_NAME,
-        channelDescription: CHANNEL_EVENTS_DESC,
-      );
+        final details = _getNotificationDetails(
+          channelId: CHANNEL_EVENTS_ID,
+          channelName: CHANNEL_EVENTS_NAME,
+          channelDescription: CHANNEL_EVENTS_DESC,
+        );
 
-      // Notificación 1 hora antes (si el lead time configurado no es ya de 60 minutos)
-      if (leadMinutes != 60 && oneHourBefore.isAfter(now)) {
-        final tzTime = tz.TZDateTime.from(oneHourBefore, tz.local);
-        try {
-          await _notificationsPlugin.zonedSchedule(
-            id1Hour,
-            'Evento IIAP en 1 hora',
-            'En 1 hora inicia "$title" en $location.',
-            tzTime,
-            details,
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-          );
-        } catch (_) {
-          await _notificationsPlugin.zonedSchedule(
-            id1Hour,
-            'Evento IIAP en 1 hora',
-            'En 1 hora inicia "$title" en $location.',
-            tzTime,
-            details,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-          );
+        // Notificación 1 hora antes
+        if (leadMinutes != 60 && oneHourBefore.isAfter(now)) {
+          final tzTime = tz.TZDateTime.from(oneHourBefore, tz.local);
+          try {
+            await _notificationsPlugin.zonedSchedule(
+              id1Hour,
+              'Evento IIAP en 1 hora',
+              'En 1 hora inicia "$title" en $location.',
+              tzTime,
+              details,
+              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          } catch (_) {
+            await _notificationsPlugin.zonedSchedule(
+              id1Hour,
+              'Evento IIAP en 1 hora',
+              'En 1 hora inicia "$title" en $location.',
+              tzTime,
+              details,
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          }
+        }
+
+        // Notificación anticipada según preferencia (por defecto 15 minutos antes)
+        if (leadBefore.isAfter(now)) {
+          final tzTime = tz.TZDateTime.from(leadBefore, tz.local);
+          final leadText = leadMinutes >= 60 ? '${leadMinutes ~/ 60} hora' : '$leadMinutes minutos';
+          try {
+            await _notificationsPlugin.zonedSchedule(
+              id15Min,
+              '¡Tu evento IIAP comienza pronto!',
+              '"$title" inicia en $leadText en $location.',
+              tzTime,
+              details,
+              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          } catch (_) {
+            await _notificationsPlugin.zonedSchedule(
+              id15Min,
+              '¡Tu evento IIAP comienza pronto!',
+              '"$title" inicia en $leadText en $location.',
+              tzTime,
+              details,
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          }
         }
       }
 
-      // Notificación anticipada según preferencia (por defecto 15 minutos antes)
-      if (leadBefore.isAfter(now)) {
-        final tzTime = tz.TZDateTime.from(leadBefore, tz.local);
-        final leadText = leadMinutes >= 60 ? '${leadMinutes ~/ 60} hora' : '$leadMinutes minutos';
+      // 2. ROTACIÓN Y CIERRE DE EVENTO
+      if (!closeEnabled || endDate == null) {
+        await cancel(idClose);
+      } else if (closeEnabled && endDate.isAfter(now)) {
+        final tzEnd = tz.TZDateTime.from(endDate, tz.local);
+        final details = _getNotificationDetails(
+          channelId: CHANNEL_EVENTS_ID,
+          channelName: CHANNEL_EVENTS_NAME,
+          channelDescription: CHANNEL_EVENTS_DESC,
+        );
         try {
           await _notificationsPlugin.zonedSchedule(
-            id15Min,
-            '¡Tu evento IIAP comienza pronto!',
-            '"$title" inicia en $leadText en $location.',
-            tzTime,
+            idClose,
+            'Cierre de Evento IIAP',
+            'El evento "$title" ha culminado. Recuerda registrar tu salida o marcado final.',
+            tzEnd,
             details,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
             uiLocalNotificationDateInterpretation:
@@ -459,10 +502,10 @@ class NotificationService {
           );
         } catch (_) {
           await _notificationsPlugin.zonedSchedule(
-            id15Min,
-            '¡Tu evento IIAP comienza pronto!',
-            '"$title" inicia en $leadText en $location.',
-            tzTime,
+            idClose,
+            'Cierre de Evento IIAP',
+            'El evento "$title" ha culminado. Recuerda registrar tu salida o marcado final.',
+            tzEnd,
             details,
             androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
             uiLocalNotificationDateInterpretation:
@@ -475,11 +518,48 @@ class NotificationService {
     }
   }
 
-  /// Cancela los recordatorios de un evento
+  /// Cancela los recordatorios de un evento (apertura y cierre)
   static Future<void> cancelEventReminders(String eventId) async {
     final hash = (eventId.hashCode % 10000).abs();
     await cancel(ID_EVENT_BASE + hash);
     await cancel(ID_EVENT_BASE + 10000 + hash);
+    await cancel(ID_EVENT_BASE + 20000 + hash);
+  }
+
+  /// Sincroniza y cancela/reprograma de inmediato en el SO al tocar los switches
+  static Future<void> syncEventSettings({
+    required bool eventsEnabled,
+    required bool closeEnabled,
+    required List<dynamic> events,
+  }) async {
+    for (final evt in events) {
+      final String id = evt.id.toString();
+      final hash = (id.hashCode % 10000).abs();
+
+      if (!eventsEnabled) {
+        await cancel(ID_EVENT_BASE + hash);
+        await cancel(ID_EVENT_BASE + 10000 + hash);
+      }
+      if (!closeEnabled) {
+        await cancel(ID_EVENT_BASE + 20000 + hash);
+      }
+
+      if (eventsEnabled || closeEnabled) {
+        final DateTime startDate = evt.startDate as DateTime;
+        final DateTime? endDate = evt.endDate as DateTime?;
+        final now = DateTime.now();
+
+        if (startDate.isAfter(now) || (endDate != null && endDate.isAfter(now))) {
+          await scheduleEventReminders(
+            eventId: id,
+            title: evt.title.toString(),
+            location: evt.location.toString(),
+            startDate: startDate,
+            endDate: endDate,
+          );
+        }
+      }
+    }
   }
 
   /// Gestiona la respuesta inteligente cuando el usuario marca asistencia en la app
