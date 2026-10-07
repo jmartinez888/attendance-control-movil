@@ -244,6 +244,47 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Future<void> _handleReconocimientoFacial(BuildContext ctx) async {
+    final user = StorageService.currentUser;
+    if (user != null && !user.canUseFacialRecognition) {
+      showDialog(
+        context: ctx,
+        builder: (dialogCtx) => AlertDialog(
+          backgroundColor: _cardBg(ctx),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          icon: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_outlined, color: Color(0xFFD97706), size: 36),
+          ),
+          title: const Text(
+            'Acceso Restringido',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+          ),
+          content: const Text(
+            'El Control Biométrico Facial está reservado exclusivamente para los roles autorizados (Administradores, Supervisores y Gestores de Asistencia).',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFFCBD5E1)),
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => Navigator.of(dialogCtx).pop(),
+                child: const Text('Entendido', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final token = await StorageService.getToken();
     if (!ctx.mounted) return;
     final res = await Navigator.of(ctx).push(
@@ -4727,38 +4768,40 @@ _buildCircularMuteBell(context),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: themeColor.withValues(alpha: 0.6), width: 1.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  onPressed: () => _handleReconocimientoFacial(context),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Icon(Icons.face_retouching_natural_rounded, size: 20, color: themeColor),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Control Biométrico Facial',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Colors.white),
+              if (user.canUseFacialRecognition) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: themeColor.withValues(alpha: 0.6), width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onPressed: () => _handleReconocimientoFacial(context),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Icon(Icons.face_retouching_natural_rounded, size: 20, color: themeColor),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Control Biométrico Facial',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 0.2, color: Colors.white),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 20, color: themeColor),
-                    ],
+                        const SizedBox(width: 8),
+                        Icon(Icons.arrow_forward_rounded, size: 20, color: themeColor),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

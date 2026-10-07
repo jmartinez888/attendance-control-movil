@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
+import '../../services/storage_service.dart';
 
 class FacialAttendanceScreen extends StatefulWidget {
   final String jwtToken; // Token JWT del usuario autenticado
@@ -33,6 +34,13 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
   @override
   void initState() {
     super.initState();
+    final user = StorageService.currentUser;
+    if (user != null && !user.canUseFacialRecognition) {
+      _statusMessage = "Acceso restringido: Tu rol no está autorizado para usar el Control Biométrico Facial.";
+      _statusColor = Colors.redAccent;
+      _statusIcon = Icons.shield_outlined;
+      return;
+    }
     _initializeCamera();
   }
 
@@ -143,6 +151,16 @@ class _FacialAttendanceScreenState extends State<FacialAttendanceScreen> {
             });
           }
         }
+      } else if (response.statusCode == 403) {
+        _throttlingTimer?.cancel();
+        if (mounted) {
+          setState(() {
+            _statusMessage = "Acceso denegado: Tu rol no tiene permisos para operar el Control Biométrico Facial.";
+            _statusColor = Colors.redAccent;
+            _statusIcon = Icons.shield_outlined;
+          });
+        }
+        return;
       } else {
         if (mounted) {
           setState(() {
