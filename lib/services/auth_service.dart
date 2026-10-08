@@ -143,7 +143,12 @@ class AuthService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final user = UserModel.fromJson(data);
-        await StorageService.updateCurrentUser(user);
+        final String? currentPhoto = StorageService.currentUser?.photoUrl;
+        final String? effectivePhoto = (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty)
+            ? user.photoUrl
+            : ((currentPhoto != null && currentPhoto.trim().isNotEmpty) ? currentPhoto : null);
+        final preservedUser = user.copyWith(photoUrl: effectivePhoto);
+        await StorageService.updateCurrentUser(preservedUser);
         return true;
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         final reauthenticated = await trySilentRelogin();
@@ -172,14 +177,13 @@ class AuthService {
   static Future<UserModel> getProfile() async {
     final response = await ApiClient.get(ApiConfig.authMe);
     final user = UserModel.fromJson(response as Map<String, dynamic>);
-    final current = StorageService.currentUser;
-    if (current?.photoUrl != null && current!.photoUrl!.startsWith('data:image')) {
-      final preservedUser = user.copyWith(photoUrl: current.photoUrl);
-      await StorageService.updateCurrentUser(preservedUser);
-      return preservedUser;
-    }
-    await StorageService.updateCurrentUser(user);
-    return user;
+    final String? currentPhoto = StorageService.currentUser?.photoUrl;
+    final String? effectivePhoto = (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty)
+        ? user.photoUrl
+        : ((currentPhoto != null && currentPhoto.trim().isNotEmpty) ? currentPhoto : null);
+    final preservedUser = user.copyWith(photoUrl: effectivePhoto);
+    await StorageService.updateCurrentUser(preservedUser);
+    return preservedUser;
   }
 
   static String? get _configuredClientId {

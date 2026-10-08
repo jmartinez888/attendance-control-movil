@@ -127,7 +127,7 @@ class _AppToastWidgetState extends State<_AppToastWidget>
             16,
             0,
             16,
-            isDesktopOrTablet ? 32 : 24,
+            isDesktopOrTablet ? 32 : 92,
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),

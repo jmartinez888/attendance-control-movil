@@ -23,6 +23,7 @@ import '../qr/qr_scanner_screen.dart';
 import '../attendance/facial_attendance_screen.dart';
 import '../notifications_settings_screen.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/app_cached_avatar.dart';
 import '../../config/api_config.dart';
 import '../../widgets/photo_viewer_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -125,21 +126,12 @@ class _DashboardTabState extends State<DashboardTab> {
     await _fetchAttendanceData();
     await EventService.getEvents();
     if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
-              SizedBox(width: 10),
-              Text('Datos sincronizados en tiempo real', style: TextStyle(fontSize: 12.5)),
-            ],
-          ),
-          backgroundColor: _cardBg(context),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 2),
-        ),
+      AppToast.show(
+        context,
+        title: 'Sincronización Exitosa',
+        subtitle: 'Información de turnos y cuadrilla al día.',
+        icon: Icons.sync_rounded,
+        accentColor: const Color(0xFF10B981),
       );
     }
   }
@@ -3207,37 +3199,52 @@ _buildCircularMuteBell(context),
           const SizedBox(height: 14),
           Row(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B2920),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF176044), width: 1.2),
-                    ),
-                    child: const Icon(
-                      Icons.av_timer_rounded,
-                      color: Color(0xFF34D399),
-                      size: 28,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -2,
-                    right: -2,
-                    child: Container(
-                      width: 9,
-                      height: 9,
+              InkWell(
+                onTap: () => _openPhotoViewer(user),
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _cardBg(context), width: 1.8),
+                        color: const Color(0xFF0B2920),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF176044), width: 1.2),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                            ? AppCachedAvatar(
+                                imageUrl: user.photoUrl,
+                                name: user.fullName,
+                                size: 54,
+                              )
+                            : const Center(
+                                child: Icon(
+                                  Icons.av_timer_rounded,
+                                  color: Color(0xFF34D399),
+                                  size: 28,
+                                ),
+                              ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      bottom: -2,
+                      right: -2,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: _cardBg(context), width: 1.8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -3323,11 +3330,12 @@ _buildCircularMuteBell(context),
               child: Text(
                 _currentShiftCuadrillaTitle,
                 style: const TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFFCBD5E1),
-                  letterSpacing: 0.6,
+                  letterSpacing: 0.2,
                 ),
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),

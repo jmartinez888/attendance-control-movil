@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/event_model.dart';
+import '../../models/user_model.dart';
 import '../../services/event_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
@@ -11,6 +12,7 @@ import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import 'event_detail_screen.dart';
 import 'event_qr_display_screen.dart';
+import '../../widgets/app_cached_avatar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class CreateEventScreen extends StatefulWidget {
@@ -1203,7 +1205,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
           const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               InkWell(
                 onTap: () => setState(() => _currentStep = 0),
@@ -1488,13 +1490,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             fontSize: 18,
           ),
         ),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 17,
-              backgroundColor: mintGreen,
-              child: Icon(Icons.person, color: darkGreen, size: 20),
+            padding: const EdgeInsets.only(right: 16),
+            child: ValueListenableBuilder<UserModel?>(
+              valueListenable: StorageService.currentUserNotifier,
+              builder: (context, user, _) {
+                final currentUser = user ?? StorageService.currentUser;
+                return AppCachedAvatar(
+                  imageUrl: currentUser?.photoUrl,
+                  name: currentUser?.fullName ?? 'U',
+                  size: 34,
+                );
+              },
             ),
           ),
         ],
@@ -1544,12 +1552,16 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Text(
-                                      'Programación de Evento IIAP',
-                                      style: TextStyle(
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    Expanded(
+                                      child: Text(
+                                        'Programación de Evento IIAP',
+                                        style: TextStyle(
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -1859,35 +1871,53 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
                     // UNIDAD ORGANIZATIVA (UO)
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Unidad Organizativa (UO)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text('*', style: TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 16)),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF064E3B).withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                          ),
-                          child: const Row(
+                        Flexible(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.security_rounded, size: 11, color: mintGreen),
-                              SizedBox(width: 4),
-                              Text(
-                                'Admin IIAP: Acceso Total',
-                                style: TextStyle(color: mintGreen, fontSize: 10.5, fontWeight: FontWeight.bold),
+                              Flexible(
+                                child: Text(
+                                  'Unidad Organizativa (UO)',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              const SizedBox(width: 4),
+                              const Text('*', style: TextStyle(color: mintGreen, fontWeight: FontWeight.bold, fontSize: 16)),
                             ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF064E3B).withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.security_rounded, size: 11, color: mintGreen),
+                                SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'Admin IIAP: Acceso Total',
+                                    style: TextStyle(color: mintGreen, fontSize: 10, fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

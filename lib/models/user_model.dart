@@ -144,7 +144,12 @@ class UserModel {
       department: cleanDept,
       documentNumber: json['document_number']?.toString(),
       phoneNumber: json['phone_number']?.toString(),
-      photoUrl: json['photo_url']?.toString(),
+      photoUrl: json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['photo']?.toString() ??
+          json['user_photo']?.toString() ??
+          json['avatar_url']?.toString() ??
+          json['profile_photo']?.toString(),
       isVerified: json['is_verified'] == true,
       isActive: json['is_active'] != false,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
