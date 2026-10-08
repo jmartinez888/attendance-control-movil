@@ -336,7 +336,14 @@ class EventModel {
       managerIds: parsedManagerIds,
       organizationalUnit: json['organizational_unit']?.toString() ?? json['organizationalUnit']?.toString(),
       shifts: parsedShifts,
-      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString() ?? json['photo_url']?.toString(),
+      imageUrl: json['image_url']?.toString() ??
+          json['imageUrl']?.toString() ??
+          json['cover_image']?.toString() ??
+          json['coverImage']?.toString() ??
+          json['image']?.toString() ??
+          json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['banner_url']?.toString(),
     );
   }
 

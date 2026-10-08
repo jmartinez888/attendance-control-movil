@@ -93,7 +93,23 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           if (cleanCode.startsWith('IIAP-EVT-')) {
             final withoutPrefix = cleanCode.substring('IIAP-EVT-'.length);
             final withoutQuery = withoutPrefix.split('?').first;
-            targetEventId = withoutQuery;
+
+            // 1. Buscar en la lista de eventos en memoria
+            final events = EventService.eventsNotifier.value;
+            for (final ev in events) {
+              if (ev.id == withoutQuery ||
+                  withoutQuery.startsWith(ev.id) ||
+                  ev.id.startsWith(withoutQuery) ||
+                  (ev.qrCode != null && (ev.qrCode == cleanCode || cleanCode.contains(ev.qrCode!)))) {
+                targetEventId = ev.id;
+                break;
+              }
+            }
+            // 2. Si tiene sufijo (ej: evt_123_456-1728399), extraer el ID real del evento
+            if (targetEventId == null) {
+              final match = RegExp(r'^(evt_\d+_\d+)').firstMatch(withoutQuery);
+              targetEventId = match != null ? match.group(1) : withoutQuery;
+            }
           } else if (hasEventIdParam) {
             targetEventId = uri.queryParameters['id'] ?? uri.queryParameters['event_id'];
           }

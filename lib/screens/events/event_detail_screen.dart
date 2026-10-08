@@ -18,6 +18,7 @@ import 'event_certificate_modal.dart';
 import 'event_qr_display_screen.dart';
 import 'manual_attendee_modal.dart';
 import '../../widgets/app_cached_avatar.dart';
+import '../../widgets/app_toast.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -340,12 +341,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       ),
     );
     if (result == true) {
+      await _fetchEventDetails();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Asistencia al evento registrada con éxito!'),
-            backgroundColor: Color(0xFF16A34A),
-          ),
+        AppToast.show(
+          context,
+          title: '¡Asistencia al evento registrada con éxito!',
+          icon: Icons.check_circle_rounded,
+          accentColor: const Color(0xFF10B981),
         );
       }
     }
@@ -1240,12 +1242,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           icon: Icon(Icons.arrow_back_rounded, color: isDark ? Colors.white : const Color(0xFF0F172A)),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          'Detalle Del Evento',
-          style: TextStyle(
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Detalle del Evento',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
         ),
         actions: [
@@ -1259,7 +1264,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     builder: (_) => CreateEventScreen(eventToEdit: _currentEvent),
                   ),
                 );
-                if (updated == true) {
+                if (updated != null) {
+                  if (updated is EventModel) {
+                    setState(() {
+                      _currentEvent = updated;
+                    });
+                  }
                   await _fetchEventDetails();
                 }
               },
@@ -1272,10 +1282,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ],
           Padding(
             padding: const EdgeInsets.only(right: 16, left: 4),
-            child: CircleAvatar(
-              radius: 17,
-              backgroundColor: mintGreen,
-              child: const Icon(Icons.person, color: darkGreen, size: 20),
+            child: AppCachedAvatar(
+              imageUrl: StorageService.currentUser?.photoUrl,
+              name: StorageService.currentUser?.fullName ?? 'U',
+              size: 34,
             ),
           ),
         ],
@@ -1959,62 +1969,62 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     Widget _buildShiftsInfoRow(BuildContext context, List<EventShift> shifts) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.schedule_rounded, size: 18, color: ThemeService.primaryColor(context)),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 85,
-          child: Text(
-            'Turnos',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+        Row(
+          children: [
+            Icon(Icons.schedule_rounded, size: 18, color: ThemeService.primaryColor(context)),
+            const SizedBox(width: 8),
+            Text(
+              'Turnos Programados',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
             ),
-          ),
+          ],
         ),
-        Expanded(
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: shifts.map((s) {
-              final color = s.name == 'manana'
-                  ? const Color(0xFFF59E0B)
-                  : s.name == 'tarde'
-                      ? const Color(0xFFF97316)
-                      : const Color(0xFF6366F1);
-              final icon = s.name == 'manana'
-                  ? Icons.wb_sunny_rounded
-                  : s.name == 'tarde'
-                      ? Icons.wb_twilight_rounded
-                      : Icons.nights_stay_rounded;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 13, color: color),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${s.label} (${s.startTime} - ${s.endTime})',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: shifts.map((s) {
+            final color = s.name == 'manana'
+                ? const Color(0xFFF59E0B)
+                : s.name == 'tarde'
+                    ? const Color(0xFFF97316)
+                    : const Color(0xFF6366F1);
+            final icon = s.name == 'manana'
+                ? Icons.wb_sunny_rounded
+                : s.name == 'tarde'
+                    ? Icons.wb_twilight_rounded
+                    : Icons.nights_stay_rounded;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 13, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${s.label} (${s.startTime} - ${s.endTime})',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: color,
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ],
     );

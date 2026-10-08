@@ -31,7 +31,19 @@ class EventService {
       if (response != null && response is List) {
         final list = response
             .whereType<Map<String, dynamic>>()
-            .map((json) => EventModel.fromJson(json))
+            .map((json) {
+              var ev = EventModel.fromJson(json);
+              final existing = eventsNotifier.value.cast<EventModel?>().firstWhere(
+                (e) => e?.id == ev.id,
+                orElse: () => null,
+              );
+              if ((ev.imageUrl == null || ev.imageUrl!.isEmpty) &&
+                  existing?.imageUrl != null &&
+                  existing!.imageUrl!.isNotEmpty) {
+                ev = ev.copyWith(imageUrl: existing.imageUrl);
+              }
+              return ev;
+            })
             .where((e) => !e.id.startsWith('evt_seed_'))
             .toList();
         final currentList = eventsNotifier.value;
@@ -71,7 +83,16 @@ class EventService {
     try {
       final response = await ApiClient.get(ApiConfig.eventById(eventId));
       if (response != null && response is Map<String, dynamic>) {
-        final serverEvent = EventModel.fromJson(response);
+        var serverEvent = EventModel.fromJson(response);
+        final existing = eventsNotifier.value.cast<EventModel?>().firstWhere(
+          (e) => e?.id == eventId,
+          orElse: () => null,
+        );
+        if ((serverEvent.imageUrl == null || serverEvent.imageUrl!.isEmpty) &&
+            existing?.imageUrl != null &&
+            existing!.imageUrl!.isNotEmpty) {
+          serverEvent = serverEvent.copyWith(imageUrl: existing.imageUrl);
+        }
         _updateLocalList(serverEvent);
         return serverEvent;
       }
@@ -100,7 +121,7 @@ class EventService {
     }
 
     final newId = 'evt_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-    final qrToken = 'IIAP-EVT-$newId-${DateTime.now().millisecondsSinceEpoch}';
+    final qrToken = 'IIAP-EVT-$newId';
 
     final event = EventModel(
       id: newId,
@@ -139,15 +160,24 @@ class EventService {
           'organizational_unit': organizationalUnit.trim(),
         if (shifts != null && shifts.isNotEmpty)
           'shifts': shifts.map((s) => s.toJson()).toList(),
-        if (imageUrl != null && imageUrl.isNotEmpty)
+        if (imageUrl != null && imageUrl.isNotEmpty) ...{
           'image_url': imageUrl,
+          'imageUrl': imageUrl,
+          'cover_image': imageUrl,
+          'image': imageUrl,
+        },
       };
       final res = await ApiClient.post(
         ApiConfig.eventsAll,
         body: createPayload,
       );
       if (res is Map<String, dynamic>) {
-        final serverEvent = EventModel.fromJson(res);
+        var serverEvent = EventModel.fromJson(res);
+        if ((serverEvent.imageUrl == null || serverEvent.imageUrl!.isEmpty) &&
+            imageUrl != null &&
+            imageUrl.isNotEmpty) {
+          serverEvent = serverEvent.copyWith(imageUrl: imageUrl);
+        }
         final current = List<EventModel>.from(eventsNotifier.value);
         current.insert(0, serverEvent);
         eventsNotifier.value = current;
@@ -182,15 +212,24 @@ class EventService {
           'organizational_unit': event.organizationalUnit,
         if (event.shifts.isNotEmpty)
           'shifts': event.shifts.map((s) => s.toJson()).toList(),
-        if (event.imageUrl != null)
+        if (event.imageUrl != null && event.imageUrl!.isNotEmpty) ...{
           'image_url': event.imageUrl,
+          'imageUrl': event.imageUrl,
+          'cover_image': event.imageUrl,
+          'image': event.imageUrl,
+        },
       };
       final res = await ApiClient.patch(
         ApiConfig.eventById(event.id),
         body: updatePayload,
       );
       if (res is Map<String, dynamic>) {
-        final updated = EventModel.fromJson(res);
+        var updated = EventModel.fromJson(res);
+        if ((updated.imageUrl == null || updated.imageUrl!.isEmpty) &&
+            event.imageUrl != null &&
+            event.imageUrl!.isNotEmpty) {
+          updated = updated.copyWith(imageUrl: event.imageUrl);
+        }
         _updateLocalList(updated);
         return updated;
       }
@@ -445,7 +484,8 @@ class EventService {
       final matches = targetEvent.qrCode == null ||
           targetEvent.qrCode == qrCode ||
           qrCode.contains(targetEvent.id) ||
-          qrCode.contains('id=${targetEvent.id}');
+          qrCode.contains('id=${targetEvent.id}') ||
+          qrCode.startsWith('IIAP-EVT-${targetEvent.id}');
       if (!matches) {
         throw ApiException('El código QR no corresponde a este evento institucional.');
       }

@@ -58,6 +58,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   bool _isSubmitting = false;
   bool _isCustomUo = false;
+  int? _maxCapacity;
+  bool _generateCertificate = false;
+  bool _allowWebRegistration = true;
 
   static const List<String> _uoOficiales = [
     'Presidencia Ejecutiva',
@@ -379,6 +382,106 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
+  Future<void> _showCapacityPicker() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: _maxCapacity != null ? '$_maxCapacity' : '50');
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Capacidad de Sala / Cupo Máximo',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Define el límite de asistentes para el aforo permitido:',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [30, 50, 100, 200, 500].map((count) {
+                  return ActionChip(
+                    label: Text('$count personas'),
+                    backgroundColor: controller.text == '$count'
+                        ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                    onPressed: () {
+                      Navigator.pop(ctx, count);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Cantidad personalizada',
+                  suffixText: 'asistentes',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  onPressed: () {
+                    final parsed = int.tryParse(controller.text.trim());
+                    if (parsed != null && parsed > 0) {
+                      Navigator.pop(ctx, parsed);
+                    } else {
+                      Navigator.pop(ctx, null);
+                    }
+                  },
+                  child: const Text('Confirmar Cupo', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() {
+        _maxCapacity = selected;
+      });
+    }
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -473,9 +576,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           shifts: activeShifts,
           imageUrl: _eventImageUrl,
         );
-        await EventService.updateEvent(updated);
+        final saved = await EventService.updateEvent(updated);
         if (!mounted) return;
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(saved);
       } else {
         final created = await EventService.createEvent(
           title: _titleController.text.trim(),
@@ -2617,41 +2720,58 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.devices_rounded, size: 18, color: mintGreen),
-                                const SizedBox(width: 10),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Registro externo vía Web móvil',
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                      ),
-                                      Text(
-                                        'Sin descarga de App requerida (Público general)',
-                                        style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
-                                      ),
-                                    ],
-                                  ),
+                          InkWell(
+                            onTap: () => setState(() => _allowWebRegistration = !_allowWebRegistration),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _allowWebRegistration ? mintGreen.withValues(alpha: 0.4) : Colors.transparent,
                                 ),
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: mintGreen,
-                                    borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.devices_rounded, size: 18, color: _allowWebRegistration ? mintGreen : const Color(0xFF64748B)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Registro externo vía Web móvil',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: _allowWebRegistration ? (isDark ? Colors.white : const Color(0xFF0F172A)) : const Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                        const Text(
+                                          'Sin descarga de App requerida (Público general)',
+                                          style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  child: const Icon(Icons.check, size: 14, color: darkGreen),
-                                ),
-                              ],
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: _allowWebRegistration ? mintGreen : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: _allowWebRegistration ? mintGreen : const Color(0xFF64748B),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: _allowWebRegistration
+                                        ? const Icon(Icons.check, size: 15, color: darkGreen)
+                                        : null,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -2679,49 +2799,86 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           ),
                           const SizedBox(height: 12),
                           Row(
-                            children: const [
-                              Text('Capacidad de Sala / Aforo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-                              Spacer(),
-                              Text('Ilimitado', style: TextStyle(fontSize: 11, color: mintGreen, fontWeight: FontWeight.bold)),
+                            children: [
+                              const Text('Capacidad de Sala / Aforo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                              const Spacer(),
+                              Text(
+                                _maxCapacity == null ? 'Ilimitado' : '$_maxCapacity personas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _maxCapacity == null ? mintGreen : const Color(0xFF38BDF8),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: mintGreen.withValues(alpha: 0.4)),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.all_inclusive_rounded, size: 15, color: mintGreen),
-                                      SizedBox(width: 6),
-                                      Text('Sin Límite', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                    ],
+                                child: InkWell(
+                                  onTap: () => setState(() => _maxCapacity = null),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: _maxCapacity == null
+                                          ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))
+                                          : (isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC)),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: _maxCapacity == null ? mintGreen.withValues(alpha: 0.6) : cardBorder,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.all_inclusive_rounded, size: 15, color: _maxCapacity == null ? mintGreen : const Color(0xFF94A3B8)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Sin Límite',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: _maxCapacity == null ? (isDark ? Colors.white : const Color(0xFF0F172A)) : const Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: cardBorder),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.group_outlined, size: 15, color: Color(0xFF94A3B8)),
-                                      SizedBox(width: 6),
-                                      Text('Establecer Cupo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-                                    ],
+                                child: InkWell(
+                                  onTap: _showCapacityPicker,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: _maxCapacity != null
+                                          ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))
+                                          : (isDark ? const Color(0xFF0B131E) : const Color(0xFFF8FAFC)),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: _maxCapacity != null ? const Color(0xFF38BDF8) : cardBorder,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.group_outlined, size: 15, color: _maxCapacity != null ? const Color(0xFF38BDF8) : const Color(0xFF94A3B8)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _maxCapacity != null ? 'Cupo: $_maxCapacity' : 'Establecer Cupo',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: _maxCapacity != null ? const Color(0xFF38BDF8) : const Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2751,8 +2908,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                 ),
                               ),
                               Switch.adaptive(
-                                value: false,
-                                onChanged: (_) {},
+                                value: _generateCertificate,
+                                activeTrackColor: mintGreen,
+                                onChanged: (val) => setState(() => _generateCertificate = val),
                               ),
                             ],
                           ),
@@ -2761,7 +2919,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // BOTÓN PRINCIPAL: PUBLICAR EVENTO OFICIAL
+                    // BOTÓN PRINCIPAL: PUBLICAR / ACTUALIZAR EVENTO OFICIAL
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -2779,10 +2937,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.rocket_launch_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
-                                  SizedBox(width: 8),
+                                  Icon(
+                                    widget.eventToEdit != null ? Icons.save_rounded : Icons.rocket_launch_rounded,
+                                    color: isDark ? Colors.white : Colors.black,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    'Publicar Evento Oficial',
+                                    widget.eventToEdit != null ? 'Guardar Cambios del Evento' : 'Publicar Evento Oficial',
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? Colors.white : Colors.black),
                                   ),
                                 ],

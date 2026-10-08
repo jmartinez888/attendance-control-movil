@@ -548,38 +548,41 @@ class _EventQrDisplayScreenState extends State<EventQrDisplayScreen> {
                       children: [
                         // Badge descriptivo del tipo de QR
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
                             color: activeModeColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: activeModeColor.withValues(alpha: 0.3)),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _selectedMode == EventQrMode.registered
-                                    ? Icons.phone_android_rounded
-                                    : Icons.language_rounded,
-                                size: 15,
-                                color: activeModeColor,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                (_selectedMode == EventQrMode.registered
-                                    ? 'QR PARA USUARIO REGISTRADO'
-                                    : 'QR PARA USUARIO EXTERNO') +
-                                (_selectedShift != null
-                                    ? ' • ${_selectedShift == "manana" ? "MAÑANA" : _selectedShift == "tarde" ? "TARDE" : "NOCHE"}'
-                                    : ''),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.bold,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _selectedMode == EventQrMode.registered
+                                      ? Icons.phone_android_rounded
+                                      : Icons.language_rounded,
+                                  size: 14,
                                   color: activeModeColor,
-                                  letterSpacing: 0.4,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  (_selectedMode == EventQrMode.registered
+                                      ? 'QR PARA USUARIO REGISTRADO'
+                                      : 'QR PARA USUARIO EXTERNO') +
+                                  (_selectedShift != null
+                                      ? ' • ${_selectedShift == "manana" ? "MAÑANA" : _selectedShift == "tarde" ? "TARDE" : "NOCHE"}'
+                                      : ''),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: activeModeColor,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
 

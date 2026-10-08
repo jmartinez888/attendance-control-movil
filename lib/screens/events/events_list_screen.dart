@@ -5,6 +5,8 @@ import '../../services/event_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../utils/responsive.dart';
+import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'create_event_screen.dart';
 import 'event_detail_screen.dart';
 
@@ -376,6 +378,39 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (event.imageUrl != null && event.imageUrl!.trim().isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 120,
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: event.imageUrl!.startsWith('data:image')
+                      ? Image.memory(
+                          base64Decode(event.imageUrl!.split(',').last),
+                          fit: BoxFit.cover,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: event.imageUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 28),
+                          ),
+                        ),
+                ),
+              ),
+            ],
             // Fila superior: Tipo + Estado
             Wrap(
               alignment: WrapAlignment.spaceBetween,

@@ -3802,6 +3802,39 @@ _buildCircularMuteBell(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (featuredEvent.imageUrl != null && featuredEvent.imageUrl!.trim().isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        height: 125,
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1F323A),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: featuredEvent.imageUrl!.startsWith('data:image')
+                            ? Image.memory(
+                                base64Decode(featuredEvent.imageUrl!.split(',').last),
+                                fit: BoxFit.cover,
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: featuredEvent.imageUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => const Center(
+                                  child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 28),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                   Wrap(
                     alignment: WrapAlignment.spaceBetween,
                     spacing: 6,
