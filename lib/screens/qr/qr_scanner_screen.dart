@@ -433,7 +433,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Comenzar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              child: const Text('Aceptar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
           ),
         ],

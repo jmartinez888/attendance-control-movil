@@ -184,15 +184,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final isAdmin = currentUser?.isAdmin == true;
         final canManageStaff = currentUser?.canManageAttendanceQr == true;
 
+        final int profileIndex = canManageStaff ? 3 : 2;
+        final bool isProfileActive = _activatedTabs.contains(profileIndex) || _activatedTabs.contains(2);
+
         final List<Widget> pages = [
           DashboardTab(
+            key: const ValueKey('tab_dashboard'),
             onNavigateToHistory: () => _selectTab(1),
             onNavigateToProfile: () => _selectTab(canManageStaff ? 3 : 2),
           ),
-          _activatedTabs.contains(1) ? const AttendanceTab() : const SizedBox.shrink(),
+          _activatedTabs.contains(1)
+              ? const AttendanceTab(key: ValueKey('tab_attendance'))
+              : const SizedBox.shrink(key: ValueKey('tab_attendance_placeholder')),
           if (canManageStaff)
-            _activatedTabs.contains(2) ? const SupervisorsTab() : const SizedBox.shrink(),
-          _activatedTabs.contains(canManageStaff ? 3 : 2) ? const ProfileTab() : const SizedBox.shrink(),
+            _activatedTabs.contains(2)
+                ? const SupervisorsTab(key: ValueKey('tab_supervisors'))
+                : const SizedBox.shrink(key: ValueKey('tab_supervisors_placeholder')),
+          isProfileActive
+              ? const ProfileTab(key: ValueKey('tab_profile'))
+              : const SizedBox.shrink(key: ValueKey('tab_profile_placeholder')),
         ];
 
         final List<NavigationDestination> destinations = [

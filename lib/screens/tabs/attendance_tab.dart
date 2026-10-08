@@ -18,8 +18,7 @@ class AttendanceTab extends StatefulWidget {
   State<AttendanceTab> createState() => _AttendanceTabState();
 }
 
-class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateMixin {
-  TabController? _tabController;
+class _AttendanceTabState extends State<AttendanceTab> {
   List<AttendanceModel> _myRecords = [];
   List<AttendanceModel> _allRecords = [];
   List<Map<String, dynamic>> _pendingCheckouts = [];
@@ -64,7 +63,6 @@ class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateM
 
     final user = StorageService.currentUserNotifier.value ?? StorageService.currentUser;
     if (user != null && (user.isAdmin || user.isSupervisor)) {
-      _tabController = TabController(length: 3, vsync: this);
       _loadAllRecords();
       _loadMyRecords();
       _loadPendingCheckouts();
@@ -76,7 +74,6 @@ class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateM
   @override
   void dispose() {
     _searchController.dispose();
-    _tabController?.dispose();
     super.dispose();
   }
 
@@ -502,9 +499,7 @@ class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateM
                           if (mounted) {
                             _loadAllRecords();
                             _loadPendingCheckouts();
-                            if (_tabController != null) {
-                              _loadMyRecords();
-                            }
+                            _loadMyRecords();
                           }
                         } catch (e) {
                           setDialogState(() => isSubmitting = false);
@@ -1095,128 +1090,140 @@ class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateM
             final isAdmin = user != null && user.isAdmin;
             final isSupervisor = user != null && user.isSupervisor;
 
+            if (isAdmin || isSupervisor) {
+              if (_allRecords.isEmpty && !_isLoadingAll) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _loadAllRecords();
+                    _loadPendingCheckouts();
+                  }
+                });
+              }
+            }
+
             // 1. Administrador General: TabBar con "Registro General", "Mis Asistencias", "Pendientes de Salida"
             if (isAdmin) {
-              return Scaffold(
-                backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
-                appBar: AppBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  title: Row(
+              return DefaultTabController(
+                length: 3,
+                child: Scaffold(
+                  backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
+                  appBar: AppBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    title: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: _cardBg(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _cardBorder(context)),
+                          ),
+                          child: const LeafLogo(size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Control Institucional',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.5, letterSpacing: -0.2),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'Administración Central • IIAP',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                        tooltip: 'Marcación Manual de Emergencia',
+                        onPressed: _showManualAttendanceDialog,
+                      ),
+                      IconButton(
+                        icon: _isGeneratingPdf
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.picture_as_pdf_rounded),
+                        tooltip: 'Exportar Reporte PDF (Entradas y Salidas)',
+                        onPressed: _isGeneratingPdf ? null : _exportPdfReport,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.cleaning_services_rounded),
+                        tooltip: 'Reinicio Semanal (Viernes 10:00 PM)',
+                        onPressed: _confirmWeeklyReset,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded),
+                        tooltip: 'Actualizar',
+                        onPressed: () {
+                          _loadAllRecords();
+                          _loadPendingCheckouts();
+                        },
+                      ),
+                    ],
+                    bottom: TabBar(
+                      labelColor: primaryColor,
+                      indicatorColor: primaryColor,
+                      unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      indicatorWeight: 3,
+                      tabs: [
+                        const Tab(
+                          icon: Icon(Icons.corporate_fare_rounded, size: 20),
+                          text: 'Registro General',
+                        ),
+                        const Tab(
+                          icon: Icon(Icons.person_outline_rounded, size: 20),
+                          text: 'Mis Asistencias',
+                        ),
+                        Tab(
+                          icon: Badge(
+                            isLabelVisible: _pendingCheckouts.isNotEmpty,
+                            label: Text('${_pendingCheckouts.length}'),
+                            backgroundColor: Colors.amber[800],
+                            child: const Icon(Icons.pending_actions_rounded, size: 20),
+                          ),
+                          text: 'Pendientes de Salida',
+                        ),
+                      ],
+                    ),
+                  ),
+                  body: TabBarView(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: _cardBg(context),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _cardBorder(context)),
-                        ),
-                        child: const LeafLogo(size: 20),
+                      _buildJourneyList(
+                        ShiftJourneyRecord.groupFromRecords(_allRecords),
+                        _isLoadingAll,
+                        () async {
+                          await _loadAllRecords();
+                          await _loadPendingCheckouts();
+                        },
+                        showUserName: true,
+                        canEdit: true,
                       ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Control Institucional',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.5, letterSpacing: -0.2),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'Administración Central • IIAP',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                      _buildJourneyList(
+                        ShiftJourneyRecord.groupFromRecords(_myRecords),
+                        _isLoadingMy,
+                        _loadMyRecords,
+                        showUserName: false,
+                      ),
+                      _buildPendingList(
+                        _pendingCheckouts,
+                        _isLoadingPending,
+                        _loadPendingCheckouts,
                       ),
                     ],
                   ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.person_add_alt_1_rounded),
-                      tooltip: 'Marcación Manual de Emergencia',
-                      onPressed: _showManualAttendanceDialog,
-                    ),
-                    IconButton(
-                      icon: _isGeneratingPdf
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.picture_as_pdf_rounded),
-                      tooltip: 'Exportar Reporte PDF (Entradas y Salidas)',
-                      onPressed: _isGeneratingPdf ? null : _exportPdfReport,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.cleaning_services_rounded),
-                      tooltip: 'Reinicio Semanal (Viernes 10:00 PM)',
-                      onPressed: _confirmWeeklyReset,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded),
-                      tooltip: 'Actualizar',
-                      onPressed: () {
-                        _loadAllRecords();
-                        _loadPendingCheckouts();
-                      },
-                    ),
-                  ],
-                  bottom: TabBar(
-                    controller: _tabController,
-                    labelColor: primaryColor,
-                    indicatorColor: primaryColor,
-                    unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    indicatorWeight: 3,
-                    tabs: [
-                      const Tab(
-                        icon: Icon(Icons.corporate_fare_rounded, size: 20),
-                        text: 'Registro General',
-                      ),
-                      const Tab(
-                        icon: Icon(Icons.person_outline_rounded, size: 20),
-                        text: 'Mis Asistencias',
-                      ),
-                      Tab(
-                        icon: Badge(
-                          isLabelVisible: _pendingCheckouts.isNotEmpty,
-                          label: Text('${_pendingCheckouts.length}'),
-                          backgroundColor: Colors.amber[800],
-                          child: const Icon(Icons.pending_actions_rounded, size: 20),
-                        ),
-                        text: 'Pendientes de Salida',
-                      ),
-                    ],
-                  ),
-                ),
-                body: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildJourneyList(
-                      ShiftJourneyRecord.groupFromRecords(_allRecords),
-                      _isLoadingAll,
-                      () async {
-                        await _loadAllRecords();
-                        await _loadPendingCheckouts();
-                      },
-                      showUserName: true,
-                      canEdit: true,
-                    ),
-                    _buildJourneyList(
-                      ShiftJourneyRecord.groupFromRecords(_myRecords),
-                      _isLoadingMy,
-                      _loadMyRecords,
-                      showUserName: false,
-                    ),
-                    _buildPendingList(
-                      _pendingCheckouts,
-                      _isLoadingPending,
-                      _loadPendingCheckouts,
-                    ),
-                  ],
                 ),
               );
             }
@@ -1288,122 +1295,123 @@ class _AttendanceTabState extends State<AttendanceTab> with TickerProviderStateM
             }
 
             // 3. Supervisor: 3 pestañas: "Mis Asistencias", "Registro Institucional", "Pendientes de Salida"
-            return Scaffold(
-              backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
-              appBar: AppBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                title: Row(
+            return DefaultTabController(
+              length: 3,
+              child: Scaffold(
+                backgroundColor: hasWallpaper ? Colors.transparent : ThemeService.scaffoldBg(context),
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  title: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _cardBg(context),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _cardBorder(context)),
+                        ),
+                        child: const LeafLogo(size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Control de Asistencias',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.5, letterSpacing: -0.2),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Supervisión de Cuadrilla • IIAP',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      tooltip: 'Marcación Manual de Emergencia',
+                      onPressed: _showManualAttendanceDialog,
+                    ),
+                    IconButton(
+                      icon: _isGeneratingPdf
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_rounded),
+                      tooltip: 'Exportar Reporte PDF (Entradas y Salidas)',
+                      onPressed: _isGeneratingPdf ? null : _exportPdfReport,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: 'Actualizar',
+                      onPressed: () {
+                        _loadMyRecords();
+                        _loadAllRecords();
+                        _loadPendingCheckouts();
+                      },
+                    ),
+                  ],
+                  bottom: TabBar(
+                    labelColor: primaryColor,
+                    indicatorColor: primaryColor,
+                    unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    indicatorWeight: 3,
+                    tabs: [
+                      const Tab(
+                        icon: Icon(Icons.person_outline_rounded, size: 20),
+                        text: 'Mis Asistencias',
+                      ),
+                      const Tab(
+                        icon: Icon(Icons.corporate_fare_rounded, size: 20),
+                        text: 'Registro General',
+                      ),
+                      Tab(
+                        icon: Badge(
+                          isLabelVisible: _pendingCheckouts.isNotEmpty,
+                          label: Text('${_pendingCheckouts.length}'),
+                          backgroundColor: Colors.amber[800],
+                          child: const Icon(Icons.pending_actions_rounded, size: 20),
+                        ),
+                        text: 'Pendientes',
+                      ),
+                    ],
+                  ),
+                ),
+                body: TabBarView(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: _cardBg(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _cardBorder(context)),
-                      ),
-                      child: const LeafLogo(size: 20),
+                    _buildJourneyList(
+                      ShiftJourneyRecord.groupFromRecords(_myRecords),
+                      _isLoadingMy,
+                      _loadMyRecords,
+                      showUserName: false,
                     ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Control de Asistencias',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.5, letterSpacing: -0.2),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            'Supervisión de Cuadrilla • IIAP',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+                    _buildJourneyList(
+                      ShiftJourneyRecord.groupFromRecords(_allRecords),
+                      _isLoadingAll,
+                      () async {
+                        await _loadAllRecords();
+                        await _loadPendingCheckouts();
+                      },
+                      showUserName: true,
+                      canEdit: true,
+                    ),
+                    _buildPendingList(
+                      _pendingCheckouts,
+                      _isLoadingPending,
+                      _loadPendingCheckouts,
                     ),
                   ],
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                    tooltip: 'Marcación Manual de Emergencia',
-                    onPressed: _showManualAttendanceDialog,
-                  ),
-                  IconButton(
-                    icon: _isGeneratingPdf
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.picture_as_pdf_rounded),
-                    tooltip: 'Exportar Reporte PDF (Entradas y Salidas)',
-                    onPressed: _isGeneratingPdf ? null : _exportPdfReport,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    tooltip: 'Actualizar',
-                    onPressed: () {
-                      _loadMyRecords();
-                      _loadAllRecords();
-                      _loadPendingCheckouts();
-                    },
-                  ),
-                ],
-                bottom: TabBar(
-                  controller: _tabController,
-                  labelColor: primaryColor,
-                  indicatorColor: primaryColor,
-                  unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  indicatorWeight: 3,
-                  tabs: [
-                    const Tab(
-                      icon: Icon(Icons.person_outline_rounded, size: 20),
-                      text: 'Mis Asistencias',
-                    ),
-                    const Tab(
-                      icon: Icon(Icons.corporate_fare_rounded, size: 20),
-                      text: 'Registro General',
-                    ),
-                    Tab(
-                      icon: Badge(
-                        isLabelVisible: _pendingCheckouts.isNotEmpty,
-                        label: Text('${_pendingCheckouts.length}'),
-                        backgroundColor: Colors.amber[800],
-                        child: const Icon(Icons.pending_actions_rounded, size: 20),
-                      ),
-                      text: 'Pendientes',
-                    ),
-                  ],
-                ),
-              ),
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildJourneyList(
-                    ShiftJourneyRecord.groupFromRecords(_myRecords),
-                    _isLoadingMy,
-                    _loadMyRecords,
-                    showUserName: false,
-                  ),
-                  _buildJourneyList(
-                    ShiftJourneyRecord.groupFromRecords(_allRecords),
-                    _isLoadingAll,
-                    () async {
-                      await _loadAllRecords();
-                      await _loadPendingCheckouts();
-                    },
-                    showUserName: true,
-                    canEdit: true,
-                  ),
-                  _buildPendingList(
-                    _pendingCheckouts,
-                    _isLoadingPending,
-                    _loadPendingCheckouts,
-                  ),
-                ],
               ),
             );
           },
