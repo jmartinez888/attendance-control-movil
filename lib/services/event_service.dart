@@ -46,11 +46,14 @@ class EventService {
             })
             .where((e) => !e.id.startsWith('evt_seed_'))
             .toList();
-        eventsNotifier.value = list;
-        await _saveToLocalCache(list);
+        // Preservar eventos locales creados recientemente que aún no estén en el servidor
+        final pendingLocals = eventsNotifier.value.where((e) => e.id.startsWith('evt_') && !list.any((serverE) => serverE.id == e.id)).toList();
+        final merged = [...pendingLocals, ...list];
+        merged.sort((a, b) => b.startDate.compareTo(a.startDate));
+
+        eventsNotifier.value = merged;
+        await _saveToLocalCache(merged);
         if (true) {
-          eventsNotifier.value = list;
-          await _saveToLocalCache(list);
 
           // Programar recordatorios offline en el SO solo cuando la lista cambia
           final now = DateTime.now();
@@ -158,12 +161,8 @@ class EventService {
           'organizational_unit': organizationalUnit.trim(),
         if (shifts != null && shifts.isNotEmpty)
           'shifts': shifts.map((s) => s.toJson()).toList(),
-        if (imageUrl != null && imageUrl.isNotEmpty) ...{
+        if (imageUrl != null && imageUrl.isNotEmpty)
           'image_url': imageUrl,
-          'imageUrl': imageUrl,
-          'cover_image': imageUrl,
-          'image': imageUrl,
-        },
       };
       final res = await ApiClient.post(
         ApiConfig.eventsAll,

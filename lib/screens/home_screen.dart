@@ -15,6 +15,7 @@ import '../widgets/app_cached_avatar.dart';
 import '../widgets/app_toast.dart';
 
 class HomeScreen extends StatefulWidget {
+  static final ValueNotifier<int> currentTabNotifier = ValueNotifier<int>(0);
   const HomeScreen({super.key});
 
   @override
@@ -29,6 +30,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _syncTimer;
   bool _isSyncing = false;
 
+  void _onExternalTabSelect() {
+    if (mounted) {
+      _selectTab(HomeScreen.currentTabNotifier.value);
+    }
+  }
+
   void _selectTab(int index) {
     if (_currentIndex == index) return;
     setState(() {
@@ -37,6 +44,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _tabHistory.remove(index);
       _tabHistory.add(index);
     });
+    if (HomeScreen.currentTabNotifier.value != index) {
+      HomeScreen.currentTabNotifier.value = index;
+    }
   }
 
   bool _handleBackPress() {
@@ -77,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    HomeScreen.currentTabNotifier.addListener(_onExternalTabSelect);
     _startSyncTimer();
     NotificationService.checkAndTriggerCheckoutReminder();
 
@@ -102,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    HomeScreen.currentTabNotifier.removeListener(_onExternalTabSelect);
     _syncTimer?.cancel();
     super.dispose();
   }

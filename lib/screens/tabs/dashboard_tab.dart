@@ -1344,7 +1344,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 MaterialPageRoute(builder: (_) => const CreateEventScreen()),
               );
               if (created == true) {
-                EventService.getEvents();
+                await EventService.getEvents(forceRefresh: true);
               }
             },
             icon: const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF091417)),
@@ -2704,7 +2704,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 MaterialPageRoute(builder: (_) => const CreateEventScreen()),
               );
               if (created == true) {
-                EventService.getEvents();
+                await EventService.getEvents(forceRefresh: true);
               }
             },
             icon: const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF091417)),
@@ -3987,7 +3987,7 @@ _buildCircularMuteBell(context),
               MaterialPageRoute(builder: (_) => const CreateEventScreen()),
             );
             if (created == true) {
-              EventService.getEvents();
+              await EventService.getEvents(forceRefresh: true);
             }
           },
           icon: const Icon(Icons.add_circle_outline_rounded, size: 17),

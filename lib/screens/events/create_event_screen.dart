@@ -1,3 +1,4 @@
+import '../home_screen.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
@@ -637,9 +638,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(ctx).pop();
-                      Navigator.of(context).pop(true);
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                      HomeScreen.currentTabNotifier.value = 0;
+                      await EventService.getEvents(forceRefresh: true);
                     },
                     child: const Text(
                       'Volver al Inicio',
