@@ -747,9 +747,13 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
   void _openScheduleDialog(UserModel user) {
     final currentSchedule = ScheduleService.getSchedule(user.id, user: user);
     ScheduleType selectedType = currentSchedule.type;
-    int checkInH = currentSchedule.checkInHour;
+    int checkInH = currentSchedule.type == ScheduleType.personalizado
+        ? ScheduleModel.normalizeHour(currentSchedule.checkInHour, isCheckOut: false)
+        : currentSchedule.checkInHour;
     int checkInM = currentSchedule.checkInMinute;
-    int checkOutH = currentSchedule.checkOutHour;
+    int checkOutH = currentSchedule.type == ScheduleType.personalizado
+        ? ScheduleModel.normalizeHour(currentSchedule.checkOutHour, isCheckOut: true)
+        : currentSchedule.checkOutHour;
     int checkOutM = currentSchedule.checkOutMinute;
     int tolerance = currentSchedule.toleranceMinutes;
 
@@ -777,10 +781,15 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
             final picked = await showTimePicker(
               context: ctx,
               initialTime: TimeOfDay(hour: checkInH, minute: checkInM),
+              helpText: 'HORA DE ENTRADA',
             );
             if (picked != null) {
               setSheetState(() {
-                checkInH = picked.hour;
+                int newH = picked.hour;
+                if (newH >= 1 && newH <= 6 && (checkInH >= 12 || checkOutH >= 13)) {
+                  newH += 12;
+                }
+                checkInH = newH;
                 checkInM = picked.minute;
                 selectedType = ScheduleType.personalizado;
               });
@@ -791,15 +800,35 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
             final picked = await showTimePicker(
               context: ctx,
               initialTime: TimeOfDay(hour: checkOutH, minute: checkOutM),
+              helpText: 'HORA DE SALIDA',
             );
             if (picked != null) {
               setSheetState(() {
-                checkOutH = picked.hour;
+                int newH = picked.hour;
+                if (newH >= 1 && newH <= 11) {
+                  newH += 12;
+                }
+                checkOutH = newH;
                 checkOutM = picked.minute;
                 selectedType = ScheduleType.personalizado;
               });
             }
           }
+
+          // Cálculos para formatos 12h y 24h
+          final inH12 = checkInH % 12 == 0 ? 12 : checkInH % 12;
+          final in24Str = '${checkInH.toString().padLeft(2, '0')}:${checkInM.toString().padLeft(2, '0')}';
+
+          final outH12 = checkOutH % 12 == 0 ? 12 : checkOutH % 12;
+          final out24Str = '${checkOutH.toString().padLeft(2, '0')}:${checkOutM.toString().padLeft(2, '0')}';
+
+          // Cálculo del límite de puntualidad en tiempo real
+          final effectiveInH = (checkInH >= 1 && checkInH <= 6) ? checkInH + 12 : checkInH;
+          final totalTolMins = effectiveInH * 60 + checkInM + tolerance;
+          final tolH12 = ((totalTolMins ~/ 60) % 12 == 0) ? 12 : ((totalTolMins ~/ 60) % 12);
+          final tolPeriod = ((totalTolMins ~/ 60) % 24) >= 12 ? 'PM' : 'AM';
+          final tolMStr = (totalTolMins % 60).toString().padLeft(2, '0');
+          final tolLimitFormatted = '${tolH12.toString().padLeft(2, '0')}:$tolMStr $tolPeriod';
 
           return Container(
             padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
@@ -885,7 +914,7 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                   const SizedBox(height: 8),
                   _buildPresetTile(
                     title: 'Horario Personalizado',
-                    subtitle: 'Ajustar horas de entrada y salida libremente',
+                    subtitle: 'Ajustar horas de entrada y salida libremente con AM/PM exacto',
                     type: ScheduleType.personalizado,
                     isSelected: selectedType == ScheduleType.personalizado,
                     isDark: isDark,
@@ -894,77 +923,187 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
 
                   const SizedBox(height: 18),
 
-                  // Visualización y selección manual de horas
+                  // Visualización y selección manual de horas con controles AM/PM
                   Row(
                     children: [
+                      // Tarjeta Hora Entrada
                       Expanded(
-                        child: InkWell(
-                          onTap: pickCheckInTime,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: ThemeService.cardBorder(context)),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selectedType == ScheduleType.personalizado
+                                  ? const Color(0xFF16A34A).withValues(alpha: 0.5)
+                                  : ThemeService.cardBorder(context),
+                              width: 1.5,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Hora Entrada', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.login_rounded, size: 16, color: Color(0xFF16A34A)),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '${checkInH.toString().padLeft(2, '0')}:${checkInM.toString().padLeft(2, '0')}',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Hora Entrada', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                                  Text(
+                                    in24Str,
+                                    style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: pickCheckInTime,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.login_rounded, size: 18, color: Color(0xFF16A34A)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${inH12.toString().padLeft(2, '0')}:${checkInM.toString().padLeft(2, '0')}',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Selector AM / PM explícito
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildAmPmChip(
+                                      label: 'AM',
+                                      isSelected: checkInH < 12,
+                                      isDark: isDark,
+                                      onTap: () {
+                                        if (checkInH >= 12) {
+                                          setSheetState(() {
+                                            checkInH -= 12;
+                                            selectedType = ScheduleType.personalizado;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _buildAmPmChip(
+                                      label: 'PM',
+                                      isSelected: checkInH >= 12,
+                                      isDark: isDark,
+                                      onTap: () {
+                                        if (checkInH < 12) {
+                                          setSheetState(() {
+                                            checkInH += 12;
+                                            selectedType = ScheduleType.personalizado;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
+                      // Tarjeta Hora Salida
                       Expanded(
-                        child: InkWell(
-                          onTap: pickCheckOutTime,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: ThemeService.cardBorder(context)),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selectedType == ScheduleType.personalizado
+                                  ? const Color(0xFFD97706).withValues(alpha: 0.5)
+                                  : ThemeService.cardBorder(context),
+                              width: 1.5,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Hora Salida', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.logout_rounded, size: 16, color: Color(0xFFD97706)),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '${checkOutH.toString().padLeft(2, '0')}:${checkOutM.toString().padLeft(2, '0')}',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Hora Salida', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                                  Text(
+                                    out24Str,
+                                    style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: pickCheckOutTime,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFD97706)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${outH12.toString().padLeft(2, '0')}:${checkOutM.toString().padLeft(2, '0')}',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Selector AM / PM explícito
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildAmPmChip(
+                                      label: 'AM',
+                                      isSelected: checkOutH < 12,
+                                      isDark: isDark,
+                                      onTap: () {
+                                        if (checkOutH >= 12) {
+                                          setSheetState(() {
+                                            checkOutH -= 12;
+                                            selectedType = ScheduleType.personalizado;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _buildAmPmChip(
+                                      label: 'PM',
+                                      isSelected: checkOutH >= 12,
+                                      isDark: isDark,
+                                      onTap: () {
+                                        if (checkOutH < 12) {
+                                          setSheetState(() {
+                                            checkOutH += 12;
+                                            selectedType = ScheduleType.personalizado;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -973,13 +1112,23 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
 
                   const SizedBox(height: 16),
 
-                  // Tolerancia de Ingreso
+                  // Tolerancia de Ingreso con indicador en tiempo real
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Tolerancia de ingreso:',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Tolerancia de ingreso:',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Límite puntual: $tolLimitFormatted',
+                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF16A34A), fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -988,7 +1137,7 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '$tolerance minutos',
+                          '+$tolerance min',
                           style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D5E2A), fontSize: 13),
                         ),
                       ),
@@ -1019,12 +1168,15 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                         elevation: 0,
                       ),
                       onPressed: () async {
+                        final normIn = (checkInH >= 1 && checkInH <= 6) ? checkInH + 12 : checkInH;
+                        final normOut = (checkOutH >= 1 && checkOutH <= 11) ? checkOutH + 12 : checkOutH;
+
                         final updatedSchedule = ScheduleModel(
                           userId: user.id,
                           type: selectedType,
-                          checkInHour: checkInH,
+                          checkInHour: normIn,
                           checkInMinute: checkInM,
-                          checkOutHour: checkOutH,
+                          checkOutHour: normOut,
                           checkOutMinute: checkOutM,
                           toleranceMinutes: tolerance,
                           updatedAt: DateTime.now(),
@@ -1046,7 +1198,7 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      'Horario actualizado para ${user.fullName}:\n${updatedSchedule.fullLabel} (Tol: $tolerance min)',
+                                      'Horario actualizado para :  (Límite: )',
                                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                     ),
                                   ),
@@ -1130,6 +1282,39 @@ class _SupervisorsTabState extends State<SupervisorsTab> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildAmPmChip({
+    required String label,
+    required bool isSelected,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF2D5E2A)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+          ),
         ),
       ),
     );
