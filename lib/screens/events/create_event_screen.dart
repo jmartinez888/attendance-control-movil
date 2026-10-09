@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/event_model.dart';
 import '../../models/user_model.dart';
 import '../../services/event_service.dart';
@@ -10,8 +8,6 @@ import '../../services/storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
-import 'event_detail_screen.dart';
-import 'event_qr_display_screen.dart';
 import '../../widgets/app_cached_avatar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -179,28 +175,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
-  Future<void> _applyPresetImage(String assetPath) async {
-    try {
-      final byteData = await rootBundle.load(assetPath);
-      final bytes = byteData.buffer.asUint8List();
-      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      if (mounted) {
-        setState(() {
-          _eventImageUrl = base64String;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar preset institucional: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
-      }
-    }
-  }
-
   void _showImageOptions() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
@@ -231,7 +205,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Selecciona una imagen institucional o captura una foto del recinto.',
+                'Selecciona una fotografía desde tu dispositivo o toma una foto en vivo.',
                 style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
               ),
               const SizedBox(height: 16),
@@ -267,54 +241,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   _pickImage(ImageSource.camera);
                 },
               ),
-              const Divider(height: 20),
-              const Text('Presets Institucionales Oficiales:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF34D399))),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      await _applyPresetImage('assets/images/wallpapers/backiee-106859.jpg');
-                    },
-                    icon: const Icon(Icons.apartment_rounded, size: 16, color: Color(0xFF34D399)),
-                    label: const Text('Auditorio Principal', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                  ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      await _applyPresetImage('assets/images/wallpapers/backiee-218350.jpg');
-                    },
-                    icon: const Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFF34D399)),
-                    label: const Text('Sala de Innovaci\u00f3n', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                  ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      await _applyPresetImage('assets/images/wallpapers/backiee-268681.jpg');
-                    },
-                    icon: const Icon(Icons.nature_people_rounded, size: 16, color: Color(0xFF34D399)),
-                    label: const Text('Campus Central', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
+              
               if (_eventImageUrl != null) ...[
                 const SizedBox(height: 12),
                 SizedBox(
@@ -644,11 +571,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     const darkGreen = Color(0xFF064E3B);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final shortId = event.id.replaceAll('evt_', '');
-    final displayId = shortId.length > 8 ? shortId.substring(0, 8) : shortId;
-    final webUrl = 'https://dev-api-control.iiap.gob.pe/events/register/${event.id}';
-    final shortDisplayUrl = 'iiap.gob.pe/ev/$displayId';
-
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -659,214 +581,77 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
           ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Padding(
-            padding: const EdgeInsets.all(22),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. Checkmark animado en verde esmeralda
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      color: mintGreen.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: mintGreen, width: 2),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.check_rounded, color: mintGreen, size: 40),
-                    ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 1. Checkmark en verde esmeralda
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: mintGreen.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: mintGreen, width: 2),
                   ),
-                  const SizedBox(height: 16),
-
-                  // 2. Título
-                  const Text(
-                    '¡Evento Publicado Con Éxito!',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.2,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: const Center(
+                    child: Icon(Icons.check_rounded, color: mintGreen, size: 44),
                   ),
-                  const SizedBox(height: 6),
+                ),
+                const SizedBox(height: 20),
 
-                  // 3. Subtítulo (Título del evento)
+                // 2. Título principal
+                const Text(
+                  '¡Evento Publicado Con Éxito!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (event.title.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
                   Text(
                     event.title,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w600,
                       color: mintGreen,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 18),
-
-                  // 4. Tarjeta QR Prominente con enlace y botones rápidos
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: mintGreen.withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        // Código QR generado
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: QrImageView(
-                            data: event.qrCode ?? 'IIAP-EVT-${event.id}',
-                            version: QrVersions.auto,
-                            size: 150,
-                            gapless: true,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Enlace corto
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.link_rounded, size: 14, color: mintGreen),
-                              const SizedBox(width: 6),
-                              Text(
-                                shortDisplayUrl,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Botones rápidos: [ Proyectar QR ] y [ Copiar Enlace ]
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: mintGreen,
-                                  foregroundColor: darkGreen,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                onPressed: () {
-                                  Navigator.of(ctx).pop();
-                                  Navigator.of(context).pushReplacement(
-                                    MaterialPageRoute(
-                                      builder: (_) => EventQrDisplayScreen(event: event),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.qr_code_scanner_rounded, size: 16, color: darkGreen),
-                                label: const Text('Proyectar QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: darkGreen)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                onPressed: () {
-                                  Clipboard.setData(ClipboardData(text: webUrl));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('¡Enlace del evento copiado al portapapeles!'),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: Color(0xFF0D9488),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.copy_rounded, size: 15),
-                                label: const Text('Copiar Enlace', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // 5. Dos Botones Finales
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: mintGreen,
-                        foregroundColor: darkGreen,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => EventDetailScreen(event: event),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Ir al Panel del Evento',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: darkGreen),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                        side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        // Reiniciar formulario para crear otro evento
-                        setState(() {
-                          _currentStep = 0;
-                          _titleController.clear();
-                          _descriptionController.clear();
-                          _selectedType = EventType.CAPACITACION;
-                          _hasManana = true;
-                          _hasTarde = false;
-                          _hasNoche = false;
-                        });
-                      },
-                      child: const Text('Crear Otro Evento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-                    ),
-                  ),
                 ],
-              ),
+                const SizedBox(height: 26),
+
+                // 3. Botón único: Volver al Inicio
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: mintGreen,
+                      foregroundColor: darkGreen,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      Navigator.of(context).pop(true);
+                    },
+                    child: const Text(
+                      'Volver al Inicio',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.5,
+                        color: darkGreen,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -1842,7 +1627,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     const Text(
-                                      'Cámara, galería o presets institucionales',
+                                      'Cámara o galería de fotos',
                                       style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                                     ),
                                   ],
