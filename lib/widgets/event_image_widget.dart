@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,7 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 /// - Cachea los bytes Base64 decodificados en memoria para evitar re-decodificaciones innecesarias.
 /// - Implementa gaplessPlayback y ValueKey estables para eliminar por completo el parpadeo
 ///   durante reconstrucciones periódicas o de sondeo en tiempo real.
-/// - Soporta URLs Base64 (data:image/...) y URLs HTTP/HTTPS con caché de red y memoria.
+/// - Soporta URLs Base64 (data:image/..., /9j/..., iVBOR...) y URLs HTTP/HTTPS con caché de red y memoria.
 class EventImageWidget extends StatefulWidget {
   final String? imageUrl;
   final double? width;
@@ -26,21 +26,33 @@ class EventImageWidget extends StatefulWidget {
     this.fallbackWidget,
   });
 
+  /// Determina si una cadena representa datos de imagen en base64
+  static bool isBase64Image(String? url) {
+    if (url == null) return false;
+    final trimmed = url.trim();
+    return trimmed.startsWith('data:image') ||
+        trimmed.startsWith('data:application/octet-stream;base64') ||
+        trimmed.startsWith('/9j/') ||
+        trimmed.startsWith('iVBORw0KGgo');
+  }
+
   /// Caché estático en memoria de cadenas base64 a Uint8List decodificados.
   static final Map<String, Uint8List> _base64Cache = {};
 
   static Uint8List? getOrDecodeBase64(String? dataUrl) {
-    if (dataUrl == null || !dataUrl.startsWith('data:image')) return null;
-    if (_base64Cache.containsKey(dataUrl)) {
-      return _base64Cache[dataUrl];
+    if (dataUrl == null || !isBase64Image(dataUrl)) return null;
+    final trimmed = dataUrl.trim();
+    if (_base64Cache.containsKey(trimmed)) {
+      return _base64Cache[trimmed];
     }
     try {
-      final clean = dataUrl.split(',').last;
-      final bytes = base64Decode(clean);
+      final clean = trimmed.contains(',') ? trimmed.split(',').last.trim() : trimmed;
+      final sanitized = clean.replaceAll(RegExp(r'[\r\n\s]'), '');
+      final bytes = base64Decode(sanitized);
       if (_base64Cache.length > 60) {
         _base64Cache.remove(_base64Cache.keys.first);
       }
-      _base64Cache[dataUrl] = bytes;
+      _base64Cache[trimmed] = bytes;
       return bytes;
     } catch (_) {
       return null;
@@ -70,7 +82,7 @@ class _EventImageWidgetState extends State<EventImageWidget> {
 
   void _loadBytes() {
     final url = widget.imageUrl;
-    if (url != null && url.startsWith('data:image')) {
+    if (url != null && EventImageWidget.isBase64Image(url)) {
       _cachedBytes = EventImageWidget.getOrDecodeBase64(url);
     } else {
       _cachedBytes = null;
@@ -85,7 +97,7 @@ class _EventImageWidgetState extends State<EventImageWidget> {
     Widget content;
     if (!hasImage) {
       content = widget.fallbackWidget ?? _defaultFallback();
-    } else if (url.startsWith('data:image')) {
+    } else if (EventImageWidget.isBase64Image(url)) {
       final bytes = _cachedBytes ?? EventImageWidget.getOrDecodeBase64(url);
       if (bytes != null) {
         content = Image.memory(

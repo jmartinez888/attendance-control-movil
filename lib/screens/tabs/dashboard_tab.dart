@@ -370,17 +370,6 @@ class _DashboardTabState extends State<DashboardTab> {
     return '$prefix, $hourStr$durStr';
   }
 
-  String _formatSupervisorEventTimeRange(EventModel event) {
-    final now = DateTime.now();
-    final isToday = event.startDate.year == now.year &&
-        event.startDate.month == now.month &&
-        event.startDate.day == now.day;
-
-    final prefix = isToday ? 'Hoy' : '${event.startDate.day} ${_getMonthAbbr(event.startDate.month)}';
-    final startStr = _formatTime(event.startDate);
-    final endStr = _formatTime(event.endDate);
-    return '$prefix, $startStr - $endStr';
-  }
 
   String _formatGestorEventTimeShort(EventModel event) {
     final now = DateTime.now();
@@ -454,11 +443,11 @@ class _DashboardTabState extends State<DashboardTab> {
                 child: ValueListenableBuilder<List<EventModel>>(
                   valueListenable: EventService.eventsNotifier,
                   builder: (context, events, _) {
-                    if (user.role == UserRole.ADMIN_EVENTO) {
+                    if (user.role == UserRole.ADMIN_EVENTO || user.isAdmin) {
                       return _buildAdminEventoDashboard(context, user, events);
                     } else if (user.role == UserRole.GESTOR_EVENTO) {
                       return _buildGestorEventoDashboard(context, user, events);
-                    } else if (isSupervisor || user.isAdmin) {
+                    } else if (isSupervisor) {
                       return _buildSupervisorDashboard(context, user, events);
                     } else {
                       return _buildUserDashboard(context, user, entry, exit, events);
@@ -564,14 +553,16 @@ class _DashboardTabState extends State<DashboardTab> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFF854D0E), width: 1.1),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.shield_rounded, color: Color(0xFFFBBF24), size: 13.5),
-                        SizedBox(width: 5),
+                        const Icon(Icons.shield_rounded, color: Color(0xFFFBBF24), size: 13.5),
+                        const SizedBox(width: 5),
                         Text(
-                          'ADMIN EVENTO',
-                          style: TextStyle(
+                          user.isSuperAdmin
+                              ? 'SUPERADMIN'
+                              : (user.isAdmin ? 'ADMINISTRADOR' : 'ADMIN EVENTO'),
+                          style: const TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w900,
                             color: Color(0xFFFBBF24),
@@ -3783,176 +3774,7 @@ _buildCircularMuteBell(context),
         ),
         const SizedBox(height: 10),
         if (featuredEvent != null) ...[
-          InkWell(
-            onTap: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => EventDetailScreen(event: featuredEvent)),
-              );
-              if (mounted) {
-                await EventService.getEvents(forceRefresh: true);
-              }
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _cardBg(context),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: featuredEvent.isActiveNow
-                      ? const Color(0xFF10B981).withValues(alpha: 0.7)
-                      : const Color(0xFF1F323A),
-                  width: featuredEvent.isActiveNow ? 1.5 : 1.2,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (featuredEvent.imageUrl != null && featuredEvent.imageUrl!.trim().isNotEmpty) ...[
-                    Container(
-                      height: 125,
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: EventImageWidget(
-                        imageUrl: featuredEvent.imageUrl,
-                        height: 125,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ],
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    spacing: 6,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0E382E),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF165942)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.calendar_today_rounded, size: 10, color: Color(0xFF10B981)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  featuredEvent.type.displayName.toUpperCase(),
-                                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF18262B),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF263C45)),
-                            ),
-                            child: const Text('Sala Presencial', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8))),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: featuredEvent.isActiveNow ? const Color(0xFF0F3224) : const Color(0xFF38290E),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: featuredEvent.isActiveNow ? const Color(0xFF176044) : const Color(0xFF6B450B),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 5.5, color: featuredEvent.isActiveNow ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
-                            const SizedBox(width: 4),
-                            Text(
-                              featuredEvent.isActiveNow ? 'En curso' : 'Próximo',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: featuredEvent.isActiveNow ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    featuredEvent.title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white, height: 1.25),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, color: Color(0xFF8FA3AF), size: 14),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          featuredEvent.location,
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFFCBD5E1)),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time_rounded, color: Color(0xFF8FA3AF), size: 14),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _formatSupervisorEventTimeRange(featuredEvent),
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFFCBD5E1)),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          _buildAttendeeAvatars(featuredEvent.attendees),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${featuredEvent.attendees.length} registrados',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF34D399)),
-                          ),
-                        ],
-                      ),
-                      const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Ver detalle', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFFCBD5E1))),
-                          SizedBox(width: 3),
-                          Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1), size: 16),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildFeaturedEventPhotoCard(context, featuredEvent),
         ],
         const SizedBox(height: 12),
         OutlinedButton.icon(
