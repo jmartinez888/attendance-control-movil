@@ -430,7 +430,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           children: [
             Icon(Icons.person_remove_rounded, color: Color(0xFFDC2626), size: 24),
             SizedBox(width: 8),
-            Text('¿Eliminar Asistente?'),
+            Text('¿Estas Seguro?'),
           ],
         ),
         content: Text(
