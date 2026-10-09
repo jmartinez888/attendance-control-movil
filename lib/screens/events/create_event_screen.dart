@@ -1,3 +1,4 @@
+import '../../widgets/event_image_widget.dart';
 import '../home_screen.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
@@ -10,7 +11,6 @@ import '../../services/theme_service.dart';
 import '../../services/wallpaper_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_cached_avatar.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class CreateEventScreen extends StatefulWidget {
   final EventModel? eventToEdit;
@@ -1562,19 +1562,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               ? Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    if (_eventImageUrl!.startsWith('data:image'))
-                                      Image.memory(
-                                        base64Decode(_eventImageUrl!.split(',').last),
-                                        fit: BoxFit.cover,
-                                      )
-                                    else
-                                      CachedNetworkImage(
-                                        imageUrl: _eventImageUrl!,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, __, ___) => const Center(
-                                          child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
-                                        ),
+                                    EventImageWidget(
+                                      imageUrl: _eventImageUrl,
+                                      fit: BoxFit.cover,
+                                      fallbackWidget: const Center(
+                                        child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
                                       ),
+                                    ),
                                     Container(
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
@@ -1945,7 +1939,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'Continuar a Sedes & Horarios',
+                              'Continuar',
                               style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: darkGreen),
                             ),
                             SizedBox(width: 8),
@@ -2341,7 +2335,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Continuar a Cierre y Publicación',
+                                  'Ir al Cierre',
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: darkGreen),
                                 ),
                                 SizedBox(width: 6),

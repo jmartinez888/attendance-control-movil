@@ -51,8 +51,22 @@ class EventService {
         final merged = [...pendingLocals, ...list];
         merged.sort((a, b) => b.startDate.compareTo(a.startDate));
 
-        eventsNotifier.value = merged;
-        await _saveToLocalCache(merged);
+        // Solo notificar si la lista ha cambiado de contenido para evitar parpadeos y re-renders continuos
+        final currentList = eventsNotifier.value;
+        bool hasChanges = currentList.length != merged.length;
+        if (!hasChanges) {
+          for (int i = 0; i < currentList.length; i++) {
+            if (currentList[i] != merged[i]) {
+              hasChanges = true;
+              break;
+            }
+          }
+        }
+
+        if (hasChanges) {
+          eventsNotifier.value = merged;
+          await _saveToLocalCache(merged);
+        }
         if (true) {
 
           // Programar recordatorios offline en el SO solo cuando la lista cambia
@@ -240,6 +254,10 @@ class EventService {
     final list = List<EventModel>.from(eventsNotifier.value);
     final idx = list.indexWhere((e) => e.id == updated.id);
     if (idx != -1) {
+      if (list[idx] == updated) {
+        // Ningún campo del evento cambió: evitamos notificar a listeners para prevenir parpadeos en pantalla
+        return;
+      }
       list[idx] = updated;
     } else {
       list.insert(0, updated);

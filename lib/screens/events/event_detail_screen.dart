@@ -1,3 +1,4 @@
+import '../../widgets/event_image_widget.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -19,7 +20,6 @@ import 'event_qr_display_screen.dart';
 import 'manual_attendee_modal.dart';
 import '../../widgets/app_cached_avatar.dart';
 import '../../widgets/app_toast.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final EventModel event;
@@ -116,7 +116,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       (e) => e.id == _currentEvent.id,
       orElse: () => _currentEvent,
     );
-    if (mounted && (updated != _currentEvent || updated.attendees.length != _currentEvent.attendees.length)) {
+    if (mounted && updated != _currentEvent) {
       final hadFewer = updated.attendees.length > _currentEvent.attendees.length;
       setState(() => _currentEvent = updated);
       _loadManagers();
@@ -1352,32 +1352,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(19),
-                        child: _currentEvent.imageUrl!.startsWith('data:image')
-                              ? Builder(
-                                  builder: (_) {
-                                    final bytes = _getOrDecodeImageBytes(_currentEvent.imageUrl);
-                                    if (bytes != null) {
-                                      return Image.memory(
-                                        bytes,
-                                        fit: BoxFit.cover,
-                                        gaplessPlayback: true,
-                                      );
-                                    }
-                                    return const Center(
-                                      child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
-                                    );
-                                  },
-                                )
-                              : CachedNetworkImage(
-                                imageUrl: _currentEvent.imageUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => const Center(
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                                errorWidget: (_, __, ___) => const Center(
-                                  child: Icon(Icons.apartment_rounded, color: Color(0xFF10B981), size: 48),
-                                ),
-                              ),
+                        child: EventImageWidget(
+                          imageUrl: _currentEvent.imageUrl,
+                          fit: BoxFit.cover,
+                          height: 190,
+                          width: double.infinity,
+                          fallbackWidget: const Center(
+                            child: Icon(Icons.apartment_rounded, color: Color(0xFF10B981), size: 48),
+                          ),
+                        ),
                       ),
                     ),
                   ],

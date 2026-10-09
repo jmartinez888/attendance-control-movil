@@ -417,4 +417,39 @@ class EventModel {
       imageUrl: imageUrl ?? this.imageUrl,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is EventModel &&
+        other.id == id &&
+        other.title == title &&
+        other.description == description &&
+        other.location == location &&
+        other.startDate == startDate &&
+        other.endDate == endDate &&
+        other.type == type &&
+        other.status == status &&
+        other.imageUrl == imageUrl &&
+        other.attendeesCount == attendeesCount &&
+        other.attendees.length == attendees.length &&
+        other.managerIds.length == managerIds.length &&
+        other.shifts.length == shifts.length;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        title,
+        description,
+        location,
+        startDate,
+        endDate,
+        type,
+        status,
+        imageUrl,
+        attendeesCount,
+        attendees.length,
+        managerIds.length,
+      );
 }

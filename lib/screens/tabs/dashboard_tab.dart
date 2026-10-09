@@ -1,3 +1,4 @@
+import '../../widgets/event_image_widget.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -1371,7 +1372,6 @@ class _DashboardTabState extends State<DashboardTab> {
         'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80';
 
     final hasCustomImage = event.imageUrl != null && event.imageUrl!.trim().isNotEmpty;
-    final isBase64 = hasCustomImage && event.imageUrl!.startsWith('data:image');
 
     return InkWell(
       onTap: () async {
@@ -1404,26 +1404,11 @@ class _DashboardTabState extends State<DashboardTab> {
             fit: StackFit.expand,
             children: [
               // 1. Imagen de Fondo (Personalizada, Preset o Auditorio Oficial)
-              if (isBase64)
-                Image.memory(
-                  base64Decode(event.imageUrl!.split(',').last),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildFallbackAuditorium(),
-                )
-              else if (hasCustomImage)
-                CachedNetworkImage(
-                  imageUrl: event.imageUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => _buildFallbackAuditorium(),
-                  errorWidget: (_, __, ___) => _buildFallbackAuditorium(),
-                )
-              else
-                CachedNetworkImage(
-                  imageUrl: defaultAuditoriumPhoto,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => _buildFallbackAuditorium(),
-                  errorWidget: (_, __, ___) => _buildFallbackAuditorium(),
-                ),
+              EventImageWidget(
+                imageUrl: hasCustomImage ? event.imageUrl : defaultAuditoriumPhoto,
+                fit: BoxFit.cover,
+                fallbackWidget: _buildFallbackAuditorium(),
+              ),
 
               // 2. Gradiente Oscuro Superpuesto para máxima legibilidad
               Container(
@@ -2504,6 +2489,20 @@ class _DashboardTabState extends State<DashboardTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (featuredEvent.imageUrl != null && featuredEvent.imageUrl!.trim().isNotEmpty) ...[
+                              Container(
+                                height: 125,
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: EventImageWidget(
+                                  imageUrl: featuredEvent.imageUrl,
+                                  height: 125,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ],
                             // Badges: [ 👥 REUNIÓN UO ]  [ ● Próximo ]  -  Hoy • 11:30 AM
                             Wrap(
                               alignment: WrapAlignment.spaceBetween,
@@ -3810,35 +3809,16 @@ _buildCircularMuteBell(context),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (featuredEvent.imageUrl != null && featuredEvent.imageUrl!.trim().isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
+                    Container(
+                      height: 125,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: EventImageWidget(
+                        imageUrl: featuredEvent.imageUrl,
                         height: 125,
                         width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1F323A),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: featuredEvent.imageUrl!.startsWith('data:image')
-                            ? Image.memory(
-                                base64Decode(featuredEvent.imageUrl!.split(',').last),
-                                fit: BoxFit.cover,
-                              )
-                            : CachedNetworkImage(
-                                imageUrl: featuredEvent.imageUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => const Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                ),
-                                errorWidget: (_, __, ___) => const Center(
-                                  child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 28),
-                                ),
-                              ),
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ],
@@ -4924,6 +4904,20 @@ _buildCircularMuteBell(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (featuredEvent.imageUrl != null && featuredEvent.imageUrl!.trim().isNotEmpty) ...[
+                    Container(
+                      height: 130,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      child: EventImageWidget(
+                        imageUrl: featuredEvent.imageUrl,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ],
                   Wrap(
                     alignment: WrapAlignment.spaceBetween,
                     spacing: 6,
