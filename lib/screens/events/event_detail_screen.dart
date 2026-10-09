@@ -39,6 +39,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Timer? _liveRefreshTimer;
   bool _isLiveRefreshing = false;
   List<Map<String, dynamic>> _assignedManagers = [];
+  Uint8List? _memoizedImageBytes;
+  String? _lastDecodedUrl;
+
+  Uint8List? _getOrDecodeImageBytes(String? url) {
+    if (url == null || !url.startsWith('data:image')) return null;
+    if (_lastDecodedUrl == url && _memoizedImageBytes != null) {
+      return _memoizedImageBytes;
+    }
+    try {
+      _lastDecodedUrl = url;
+      _memoizedImageBytes = base64Decode(url.split(',').last);
+      return _memoizedImageBytes;
+    } catch (_) {
+      return null;
+    }
+  }
   int _selectedTab = 0;
   String _attendeeSearchQuery = '';
 
@@ -60,10 +76,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       try {
         final fresh = await EventService.getEventById(_currentEvent.id);
         if (fresh != null && mounted) {
-          if (fresh.attendees.length != _currentEvent.attendees.length || fresh != _currentEvent) {
+          final attendeesChanged = fresh.attendees.length != _currentEvent.attendees.length;
+          final titleChanged = fresh.title != _currentEvent.title;
+          final imageChanged = fresh.imageUrl != _currentEvent.imageUrl;
+          final statusChanged = fresh.status != _currentEvent.status;
+          final managersChanged = fresh.managerIds.length != _currentEvent.managerIds.length;
+
+          if (attendeesChanged || titleChanged || imageChanged || statusChanged || managersChanged) {
             final hadFewer = fresh.attendees.length > _currentEvent.attendees.length;
-            final managersChanged = fresh.managerIds.length != _currentEvent.managerIds.length;
-            setState(() => _currentEvent = fresh);
+            setState(() {
+              _currentEvent = fresh;
+              if (imageChanged) {
+                _memoizedImageBytes = _getOrDecodeImageBytes(fresh.imageUrl);
+              }
+            });
             if (managersChanged || _assignedManagers.isEmpty) {
               _loadManagers();
             }
@@ -1327,11 +1353,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(19),
                         child: _currentEvent.imageUrl!.startsWith('data:image')
-                            ? Image.memory(
-                                base64Decode(_currentEvent.imageUrl!.split(',').last),
-                                fit: BoxFit.cover,
-                              )
-                            : CachedNetworkImage(
+                              ? Builder(
+                                  builder: (_) {
+                                    final bytes = _getOrDecodeImageBytes(_currentEvent.imageUrl);
+                                    if (bytes != null) {
+                                      return Image.memory(
+                                        bytes,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      );
+                                    }
+                                    return const Center(
+                                      child: Icon(Icons.broken_image_rounded, color: Color(0xFF64748B), size: 36),
+                                    );
+                                  },
+                                )
+                              : CachedNetworkImage(
                                 imageUrl: _currentEvent.imageUrl!,
                                 fit: BoxFit.cover,
                                 placeholder: (_, __) => const Center(

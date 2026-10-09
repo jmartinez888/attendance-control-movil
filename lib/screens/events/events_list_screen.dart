@@ -393,6 +393,7 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
                       ? Image.memory(
                           base64Decode(event.imageUrl!.split(',').last),
                           fit: BoxFit.cover,
+                          gaplessPlayback: true,
                         )
                       : CachedNetworkImage(
                           imageUrl: event.imageUrl!,

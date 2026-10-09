@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-/// Proveedor de imagen con caché en disco y memoria de alto rendimiento
+/// Proveedor de imagen con cache en disco y memoria de alto rendimiento
 ImageProvider? appCachedImageProvider(String? imageUrl) {
   if (imageUrl == null || imageUrl.trim().isEmpty) return null;
   final clean = imageUrl.trim();
@@ -19,7 +19,7 @@ ImageProvider? appCachedImageProvider(String? imageUrl) {
   return CachedNetworkImageProvider(clean);
 }
 
-/// Widget optimizado para fotos de perfil con almacenamiento en caché persistente en disco
+/// Widget optimizado para fotos de perfil con almacenamiento en cache persistente en disco
 /// Carga al instante (0 ms) en aperturas posteriores sin volver a descargar de internet.
 class AppCachedAvatar extends StatelessWidget {
   final String? imageUrl;
@@ -28,6 +28,7 @@ class AppCachedAvatar extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final BoxBorder? border;
+  final BorderRadius? borderRadius;
   final VoidCallback? onTap;
 
   const AppCachedAvatar({
@@ -38,6 +39,7 @@ class AppCachedAvatar extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.border,
+    this.borderRadius,
     this.onTap,
   });
 
@@ -81,6 +83,7 @@ class AppCachedAvatar extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
+            gaplessPlayback: true,
           );
         } else {
           avatarContent = Container(
@@ -148,17 +151,43 @@ class AppCachedAvatar extends StatelessWidget {
       );
     }
 
-    Widget result = Container(
+    // Asegurar proporcion 1:1 estricta para evitar cualquier apariencia ovalada o distorsionada
+    final squaredAvatar = SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: border,
-      ),
-      child: ClipOval(
+      child: AspectRatio(
+        aspectRatio: 1.0,
         child: avatarContent,
       ),
     );
+
+    Widget result;
+    if (borderRadius != null) {
+      result = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          border: border,
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius!,
+          child: squaredAvatar,
+        ),
+      );
+    } else {
+      result = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: border,
+        ),
+        child: ClipOval(
+          child: squaredAvatar,
+        ),
+      );
+    }
 
     if (onTap != null) {
       result = GestureDetector(

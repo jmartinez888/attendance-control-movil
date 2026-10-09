@@ -65,10 +65,16 @@ class _DashboardTabState extends State<DashboardTab> {
   void _startRealtimeSync() {
     _realtimeTimer?.cancel();
     // Sincronización en tiempo real continua e inteligente con guard de concurrencia
+    int syncCycles = 0;
     _realtimeTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) async {
       if (!mounted || _isRealtimeSyncing) return;
       _isRealtimeSyncing = true;
       try {
+        syncCycles++;
+        // Sincronizar perfil periodicamente para detectar cambios de rol a SUPERVISOR sin reiniciar
+        if (syncCycles % 3 == 0) {
+          await AuthService.getProfile();
+        }
         await _fetchAttendanceData();
         await EventService.getEvents();
       } finally {
@@ -2427,7 +2433,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 border: Border.all(color: const Color(0xFF263C45)),
               ),
               child: Text(
-                '${activeOrUpcoming.isNotEmpty ? activeOrUpcoming.length : (events.isNotEmpty ? events.length : 4)} en agenda',
+                '${events.length} en agenda',
                 style: const TextStyle(
                   fontSize: 9.5,
                   fontWeight: FontWeight.bold,
@@ -2959,11 +2965,11 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Widget _buildSupervisorTopStatusBar() {
-    return const Row(
+    return Row(
       children: [
-        Icon(Icons.play_circle_fill_rounded, color: Color(0xFF10B981), size: 14),
-        SizedBox(width: 6),
-        Flexible(
+        const Icon(Icons.shield_outlined, color: Color(0xFF10B981), size: 14),
+        const SizedBox(width: 6),
+        const Flexible(
           child: Text(
             'SISTEMA BIOMÉTRICO IIAP',
             style: TextStyle(
@@ -2975,30 +2981,30 @@ class _DashboardTabState extends State<DashboardTab> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Spacer(),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.circle, color: Color(0xFF10B981), size: 6.5),
-            SizedBox(width: 5),
-            Text(
-              '1.7 K/s',
-              style: TextStyle(
-                color: Color(0xFF10B981),
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(width: 8),
-            Text(
-              '75%',
-              style: TextStyle(
-                color: Color(0xFF10B981),
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+        const Spacer(),
+        ValueListenableBuilder<bool>(
+          valueListenable: ConnectivityService.isOnlineNotifier,
+          builder: (context, isOnline, _) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.circle,
+                  color: isOnline ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  size: 6.5,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  isOnline ? 'En línea' : 'Sin conexión',
+                  style: TextStyle(
+                    color: isOnline ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -3220,6 +3226,7 @@ _buildCircularMuteBell(context),
                                 imageUrl: user.photoUrl,
                                 name: user.fullName,
                                 size: 54,
+                                borderRadius: BorderRadius.circular(15),
                               )
                             : const Center(
                                 child: Icon(

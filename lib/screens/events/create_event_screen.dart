@@ -179,6 +179,28 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
+  Future<void> _applyPresetImage(String assetPath) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      final bytes = byteData.buffer.asUint8List();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      if (mounted) {
+        setState(() {
+          _eventImageUrl = base64String;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar preset institucional: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
+  }
+
   void _showImageOptions() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
@@ -248,40 +270,48 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               const Divider(height: 20),
               const Text('Presets Institucionales Oficiales:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF34D399))),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        side: const BorderSide(color: Color(0xFF1F323A)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _eventImageUrl = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80';
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text('Auditorio Principal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _applyPresetImage('assets/images/wallpapers/backiee-106859.jpg');
+                    },
+                    icon: const Icon(Icons.apartment_rounded, size: 16, color: Color(0xFF34D399)),
+                    label: const Text('Auditorio Principal', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        side: const BorderSide(color: Color(0xFF1F323A)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _eventImageUrl = 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80';
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text('Sala de Innovación', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _applyPresetImage('assets/images/wallpapers/backiee-218350.jpg');
+                    },
+                    icon: const Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFF34D399)),
+                    label: const Text('Sala de Innovaci\u00f3n', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _applyPresetImage('assets/images/wallpapers/backiee-268681.jpg');
+                    },
+                    icon: const Icon(Icons.nature_people_rounded, size: 16, color: Color(0xFF34D399)),
+                    label: const Text('Campus Central', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),

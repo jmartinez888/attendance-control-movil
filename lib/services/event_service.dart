@@ -46,11 +46,9 @@ class EventService {
             })
             .where((e) => !e.id.startsWith('evt_seed_'))
             .toList();
-        final currentList = eventsNotifier.value;
-        final bool hasChanged = currentList.length != list.length ||
-            (currentList.isNotEmpty && list.isNotEmpty && (currentList.first.id != list.first.id || currentList.first.attendees.length != list.first.attendees.length));
-
-        if (hasChanged || currentList.isEmpty) {
+        eventsNotifier.value = list;
+        await _saveToLocalCache(list);
+        if (true) {
           eventsNotifier.value = list;
           await _saveToLocalCache(list);
 
