@@ -1,3 +1,4 @@
+import '../../widgets/event_image_widget.dart';
 import 'package:flutter/material.dart';
 import '../../models/event_model.dart';
 import '../../models/user_model.dart';
@@ -24,7 +25,7 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _loadEvents();
   }
@@ -73,7 +74,7 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
     return '${hour.toString().padLeft(2, '0')}:$minute $ampm';
   }
 
-  List<EventModel> _filterEvents(List<EventModel> allEvents, int tabIndex) {
+  List<EventModel> _filterEvents(List<EventModel> allEvents, int tabIndex, UserModel? currentUser) {
     final query = _searchQuery.toLowerCase().trim();
     final now = DateTime.now();
 
@@ -91,6 +92,9 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
       } else if (tabIndex == 2) {
         // Finalizados
         return e.endDate.isBefore(now) && !e.isActiveNow;
+      } else if (tabIndex == 3) {
+        // Mis Asistencias
+        return currentUser != null && e.isUserRegistered(currentUser.id);
       }
       return true; // Todos
     }).toList();
@@ -113,17 +117,50 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
         backgroundColor: ThemeService.cardBg(context),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
-          child: TabBar(
-            controller: _tabController,
-            indicatorColor: ThemeService.primaryColor(context),
-            labelColor: ThemeService.primaryColor(context),
-            unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: const [
-              Tab(text: 'Todos'),
-              Tab(text: 'Próximos'),
-              Tab(text: 'Finalizados'),
-            ],
+          child: ValueListenableBuilder<List<EventModel>>(
+            valueListenable: EventService.eventsNotifier,
+            builder: (context, allEvents, _) {
+              final myCount = allEvents.where((e) => currentUser != null && e.isUserRegistered(currentUser.id)).length;
+
+              return TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorColor: ThemeService.primaryColor(context),
+                labelColor: ThemeService.primaryColor(context),
+                unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                tabs: [
+                  const Tab(text: 'Todos'),
+                  const Tab(text: 'Próximos'),
+                  const Tab(text: 'Finalizados'),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_rounded, size: 14),
+                        const SizedBox(width: 5),
+                        const Text('Mis Asistencias'),
+                        if (myCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$myCount',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -209,9 +246,10 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
                   return TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildEventList(context, _filterEvents(allEvents, 0), currentUser),
-                      _buildEventList(context, _filterEvents(allEvents, 1), currentUser),
-                      _buildEventList(context, _filterEvents(allEvents, 2), currentUser),
+                      _buildEventList(context, _filterEvents(allEvents, 0, currentUser), currentUser, 0),
+                      _buildEventList(context, _filterEvents(allEvents, 1, currentUser), currentUser, 1),
+                      _buildEventList(context, _filterEvents(allEvents, 2, currentUser), currentUser, 2),
+                      _buildEventList(context, _filterEvents(allEvents, 3, currentUser), currentUser, 3),
                     ],
                   );
                 },
@@ -223,14 +261,16 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildEventList(BuildContext context, List<EventModel> events, UserModel? currentUser) {
+  Widget _buildEventList(BuildContext context, List<EventModel> events, UserModel? currentUser, int tabIndex) {
     if (events.isEmpty) {
+      final isMyAttendanceTab = tabIndex == 3;
+
       return RefreshIndicator(
         onRefresh: _loadEvents,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
+            padding: const EdgeInsets.symmetric(vertical: 70, horizontal: 24),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -238,28 +278,46 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: ThemeService.primaryColor(context).withValues(alpha: 0.1),
+                      color: isMyAttendanceTab
+                          ? const Color(0xFF16A34A).withValues(alpha: 0.12)
+                          : ThemeService.primaryColor(context).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.event_busy_rounded,
+                      isMyAttendanceTab ? Icons.verified_rounded : Icons.event_busy_rounded,
                       size: 48,
-                      color: ThemeService.primaryColor(context),
+                      color: isMyAttendanceTab ? const Color(0xFF16A34A) : ThemeService.primaryColor(context),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'No se encontraron eventos',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Text(
+                    isMyAttendanceTab ? 'Sin asistencias registradas' : 'No se encontraron eventos',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     _searchQuery.isNotEmpty
                         ? 'No hay eventos que coincidan con la búsqueda.'
-                        : 'No hay eventos disponibles en esta sección.',
+                        : (isMyAttendanceTab
+                            ? 'Aún no has registrado tu asistencia a ningún evento institucional. Cuando escanees el QR de un evento o seas acreditado, tu constancia aparecerá aquí.'
+                            : 'No hay eventos disponibles en esta sección.'),
                     style: TextStyle(color: ThemeService.subtextColor(context), fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
+                  if (isMyAttendanceTab && _searchQuery.isEmpty) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ThemeService.primaryColor(context),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      onPressed: () => _tabController.animateTo(1),
+                      icon: const Icon(Icons.explore_outlined, size: 18),
+                      label: const Text('Explorar Próximos Eventos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -319,9 +377,26 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (event.imageUrl != null && event.imageUrl!.trim().isNotEmpty) ...[
+              Container(
+                height: 120,
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: EventImageWidget(
+                  imageUrl: event.imageUrl,
+                  height: 120,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ],
             // Fila superior: Tipo + Estado
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -340,6 +415,7 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
                   ),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     if (event.requiresAttendance) ...[
                       Container(
@@ -417,27 +493,39 @@ class _EventsListScreenState extends State<EventsListScreen> with SingleTickerPr
             const SizedBox(height: 8),
 
             // Fecha y Horario
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(Icons.calendar_today_rounded, size: 13, color: ThemeService.primaryColor(context)),
-                const SizedBox(width: 5),
-                Text(
-                  _formatDate(event.startDate),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_rounded, size: 13, color: ThemeService.primaryColor(context)),
+                    const SizedBox(width: 5),
+                    Text(
+                      _formatDate(event.startDate),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Icon(Icons.access_time_rounded, size: 13, color: ThemeService.subtextColor(context)),
-                const SizedBox(width: 4),
-                Text(
-                  '${_formatTime(event.startDate)} - ${_formatTime(event.endDate)}',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: ThemeService.subtextColor(context),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_rounded, size: 13, color: ThemeService.subtextColor(context)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_formatTime(event.startDate)} - ${_formatTime(event.endDate)}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: ThemeService.subtextColor(context),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -25,14 +25,22 @@ class StorageService {
     return deviceId;
   }
 
+  static String? _cachedToken;
+  static String? get tokenSync => _cachedToken;
   static UserModel? get currentUser => currentUserNotifier.value;
   static final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
   static final ValueNotifier<bool> isAuthenticatedNotifier = ValueNotifier<bool>(false);
+
+  static bool get hasSession =>
+      currentUserNotifier.value != null &&
+      _cachedToken != null &&
+      _cachedToken!.isNotEmpty;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_keyToken);
     final userJson = prefs.getString(_keyUserData);
+    _cachedToken = token;
 
     if (userJson != null && userJson.isNotEmpty) {
       try {
@@ -46,9 +54,12 @@ class StorageService {
           await prefs.setString(_keyUserData, jsonEncode(user.toJson()));
         }
         currentUserNotifier.value = user;
-        isAuthenticatedNotifier.value = true;
+        isAuthenticatedNotifier.value = (token != null && token.isNotEmpty);
       } catch (e) {
         debugPrint('Error decodificando usuario en caché: $e');
+        if (token != null && token.isNotEmpty) {
+          isAuthenticatedNotifier.value = true;
+        }
       }
     } else if (token != null && token.isNotEmpty) {
       isAuthenticatedNotifier.value = true;
@@ -59,11 +70,16 @@ class StorageService {
   }
 
   static Future<String?> getToken() async {
+    if (_cachedToken != null && _cachedToken!.isNotEmpty) {
+      return _cachedToken;
+    }
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyToken);
+    _cachedToken = prefs.getString(_keyToken);
+    return _cachedToken;
   }
 
   static Future<void> updateToken(String newToken) async {
+    _cachedToken = newToken;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyToken, newToken);
   }
@@ -84,6 +100,7 @@ class StorageService {
     String? email,
     String? password,
   }) async {
+    _cachedToken = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyToken, token);
     await prefs.setString(_keyUserData, jsonEncode(user.toJson()));
@@ -105,15 +122,16 @@ class StorageService {
     currentUserNotifier.value = user;
   }
 
-  /// Limpia la sesión SOLO cuando el usuario presiona "Cerrar sesión" voluntariamente
+  /// Limpia la sesión SOLO cuando se cierra sesión voluntariamente o el backend rechaza definitivamente las credenciales
   static Future<void> clearSession() async {
+    _cachedToken = null;
+    currentUserNotifier.value = null;
+    isAuthenticatedNotifier.value = false;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyToken);
     await prefs.remove(_keyUserData);
     await prefs.remove(_keySavedEmail);
     await prefs.remove(_keySavedPassword);
-
-    currentUserNotifier.value = null;
-    isAuthenticatedNotifier.value = false;
   }
 }

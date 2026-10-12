@@ -17,7 +17,6 @@ jobs:
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.7'
           channel: 'stable'
           cache: true
 
@@ -30,8 +29,13 @@ jobs:
 
       - name: Crear archivo IPA para iPhone / iPad
         run: |
+          RUNNER_PATH=$(find build -name "Runner.app" -type d | head -n 1)
+          if [ -z "$RUNNER_PATH" ]; then
+            RUNNER_PATH="build/ios/iphoneos/Runner.app"
+          fi
+          echo "Found Runner.app at: $RUNNER_PATH"
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r "$RUNNER_PATH" Payload/
           zip -r control_asistencia.ipa Payload
           rm -rf Payload
 

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class PhotoViewerDialog extends StatefulWidget {
   final String photoUrl;
@@ -142,28 +143,20 @@ class _PhotoViewerDialogState extends State<PhotoViewerDialog> with SingleTicker
                 scaleEnabled: true,
                 child: Hero(
                   tag: 'profile_photo_${widget.photoUrl}',
-                  child: Image.network(
-                    widget.photoUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.photoUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      final expected = loadingProgress.expectedTotalBytes;
-                      final progress = expected != null
-                          ? loadingProgress.cumulativeBytesLoaded / expected
-                          : null;
-                      return SizedBox(
-                        width: 220,
-                        height: 220,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: progress,
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
+                    placeholder: (context, url) => const SizedBox(
+                      width: 220,
+                      height: 220,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 3,
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
+                      ),
+                    ),
+                    errorWidget: (context, url, error) {
                       return Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(

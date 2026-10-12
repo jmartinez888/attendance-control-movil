@@ -1,18 +1,33 @@
 // ignore_for_file: constant_identifier_names
 
 enum UserRole {
+  SUPERADMIN,
   ADMIN,
+  ADMIN_EVENTO,
+  GESTOR_EVENTO,
   SUPERVISOR,
   USER;
 
   static UserRole fromString(String? role) {
     switch (role?.toUpperCase()) {
+      case 'SUPERADMIN':
+        return UserRole.SUPERADMIN;
       case 'ADMIN':
+      case 'ADMIN_IIAP':
         return UserRole.ADMIN;
+      case 'ADMIN_EVENTO':
+      case 'ADMIN_UO':
+      case 'ADMIN_E':
+        return UserRole.ADMIN_EVENTO;
+      case 'GESTOR_EVENTO':
+      case 'GESTOR_UO':
+      case 'GESTOR_E':
+        return UserRole.GESTOR_EVENTO;
       case 'SUPERVISOR':
         return UserRole.SUPERVISOR;
       case 'USER':
       case 'EMPLOYEE':
+      case 'PARTICIPANTE':
       default:
         return UserRole.USER;
     }
@@ -20,12 +35,18 @@ enum UserRole {
 
   String get displayName {
     switch (this) {
+      case UserRole.SUPERADMIN:
+        return 'Super Admin';
       case UserRole.ADMIN:
-        return 'Admin';
+        return 'Admin IIAP';
+      case UserRole.ADMIN_EVENTO:
+        return 'Admin Evento / UO';
+      case UserRole.GESTOR_EVENTO:
+        return 'Gestor Evento / UO';
       case UserRole.SUPERVISOR:
         return 'Supervisor';
       case UserRole.USER:
-        return 'User';
+        return 'Usuario';
     }
   }
 }
@@ -47,6 +68,7 @@ class UserModel {
   final String? customCheckIn;
   final String? customCheckOut;
   final int customToleranceMinutes;
+  final String? primaryDeviceId;
 
   UserModel({
     required this.id,
@@ -65,11 +87,21 @@ class UserModel {
     this.customCheckIn,
     this.customCheckOut,
     this.customToleranceMinutes = 30,
+    this.primaryDeviceId,
   });
 
-  bool get isAdmin => role == UserRole.ADMIN;
+  bool get isSuperAdmin => role == UserRole.SUPERADMIN;
+  bool get isAdmin => role == UserRole.ADMIN || role == UserRole.SUPERADMIN;
+  bool get isAdminEvento => role == UserRole.ADMIN_EVENTO || isAdmin;
+  bool get isGestorEvento => role == UserRole.GESTOR_EVENTO || isAdminEvento;
   bool get isSupervisor => role == UserRole.SUPERVISOR;
-  bool get canManageAttendanceQr => isAdmin || isSupervisor;
+  bool get canManageAttendanceQr =>
+      isAdmin || isSupervisor || role == UserRole.ADMIN_EVENTO || role == UserRole.GESTOR_EVENTO;
+  bool get canEditAttendance => isAdmin || isSupervisor || role == UserRole.ADMIN_EVENTO;
+  bool get canManageEvents =>
+      isAdmin || isSupervisor || role == UserRole.ADMIN_EVENTO || role == UserRole.GESTOR_EVENTO;
+  bool get canUseFacialRecognition =>
+      isAdmin || isSupervisor || role == UserRole.ADMIN_EVENTO || role == UserRole.GESTOR_EVENTO;
 
   /// Oficina asignada al usuario (vacía por defecto si no ha sido configurada)
   String get office {
@@ -112,7 +144,12 @@ class UserModel {
       department: cleanDept,
       documentNumber: json['document_number']?.toString(),
       phoneNumber: json['phone_number']?.toString(),
-      photoUrl: json['photo_url']?.toString(),
+      photoUrl: json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['photo']?.toString() ??
+          json['user_photo']?.toString() ??
+          json['avatar_url']?.toString() ??
+          json['profile_photo']?.toString(),
       isVerified: json['is_verified'] == true,
       isActive: json['is_active'] != false,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
@@ -120,6 +157,7 @@ class UserModel {
       customCheckIn: json['custom_check_in']?.toString() ?? '08:00',
       customCheckOut: json['custom_check_out']?.toString() ?? '17:00',
       customToleranceMinutes: (json['custom_tolerance_minutes'] as num?)?.toInt() ?? 30,
+      primaryDeviceId: json['primary_device_id']?.toString() ?? json['primaryDeviceId']?.toString(),
     );
   }
 
@@ -141,6 +179,7 @@ class UserModel {
       'custom_check_in': customCheckIn,
       'custom_check_out': customCheckOut,
       'custom_tolerance_minutes': customToleranceMinutes,
+      if (primaryDeviceId != null) 'primary_device_id': primaryDeviceId,
     };
   }
 
@@ -161,6 +200,7 @@ class UserModel {
     String? customCheckIn,
     String? customCheckOut,
     int? customToleranceMinutes,
+    String? primaryDeviceId,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -179,6 +219,7 @@ class UserModel {
       customCheckIn: customCheckIn ?? this.customCheckIn,
       customCheckOut: customCheckOut ?? this.customCheckOut,
       customToleranceMinutes: customToleranceMinutes ?? this.customToleranceMinutes,
+      primaryDeviceId: primaryDeviceId ?? this.primaryDeviceId,
     );
   }
 }

@@ -39,6 +39,11 @@ class UsersService {
     await ApiClient.delete(ApiConfig.userById(id));
   }
 
+  // Desvincular celular del usuario para permitir registro en un nuevo equipo (Solo ADMIN)
+  static Future<void> unbindDevice(String id) async {
+    await ApiClient.delete(ApiConfig.userDevice(id));
+  }
+
   // Actualizar datos de cualquier colaborador (ADMIN o SUPERVISOR)
   static Future<UserModel> updateUser(String id, Map<String, dynamic> data) async {
     final response = await ApiClient.patch(
@@ -57,14 +62,15 @@ class UsersService {
   }
 
   // Subir foto de perfil en Base64
-  static Future<String> uploadPhotoBase64(String base64Image) async {
+  static Future<String> uploadPhotoBase64(String base64Image, {bool updateStorage = true}) async {
     final response = await ApiClient.post(
       ApiConfig.uploadPhotoBase64,
       body: {'image_base64': base64Image},
+      timeout: const Duration(seconds: 60),
     );
     final photoUrl = response['photo_url']?.toString() ?? '';
     final currentUser = StorageService.currentUserNotifier.value;
-    if (currentUser != null && photoUrl.isNotEmpty) {
+    if (updateStorage && currentUser != null && photoUrl.isNotEmpty) {
       await StorageService.updateCurrentUser(currentUser.copyWith(photoUrl: photoUrl));
     }
     return photoUrl;

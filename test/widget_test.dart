@@ -32,7 +32,7 @@ void main() {
     );
 
     expect(find.text('Juan Pérez'), findsOneWidget);
-    expect(find.text('Turno Mañana'), findsOneWidget);
-    expect(find.text('Salida no registrada'), findsOneWidget);
+    expect(find.text('Mañana'), findsOneWidget);
+    expect(find.text('Sin salida'), findsOneWidget);
   });
 }

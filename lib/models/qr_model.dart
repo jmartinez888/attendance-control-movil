@@ -25,7 +25,7 @@ class QrGeneratedResponse {
     return QrGeneratedResponse(
       success: json['success'] == true,
       message: json['message']?.toString() ?? '',
-      qrCode: json['qr_code']?.toString() ?? '',
+      qrCode: json['qr_code']?.toString() ?? json['qr_token']?.toString() ?? '',
       type: json['type']?.toString() ?? 'ATTENDANCE',
       expiresAt: json['expires_at'] != null
           ? DateTime.tryParse(json['expires_at'].toString())?.toLocal() ?? DateTime.now().add(const Duration(minutes: 5))

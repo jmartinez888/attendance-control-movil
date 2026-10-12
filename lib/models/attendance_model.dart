@@ -127,6 +127,29 @@ class AttendanceModel {
       observation: json['observation']?.toString(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'timestamp': timestamp.toIso8601String(),
+      'type': type.name,
+      'status': status.name,
+      'shift': shift.name,
+      if (workDate != null) 'work_date': workDate,
+      if (scannedQrHash != null) 'scanned_qr_hash': scannedQrHash,
+      if (markedById != null) 'marked_by_id': markedById,
+      if (userName != null) 'user_name': userName,
+      if (userEmail != null) 'user_email': userEmail,
+      if (userDocument != null) 'document_number': userDocument,
+      if (markedByName != null) 'marked_by_name': markedByName,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (deviceId != null) 'device_id': deviceId,
+      'is_manual': isManual,
+      if (observation != null) 'observation': observation,
+    };
+  }
 }
 
 /// Representa una jornada de asistencia consolidada por Fecha y Turno (Entrada + Salida + Estado)

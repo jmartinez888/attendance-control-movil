@@ -82,6 +82,38 @@ enum EventStatus {
   }
 }
 
+class EventShift {
+  final String name; // 'MANANA', 'TARDE', 'NOCHE'
+  final String label; // 'Turno Mañana', 'Turno Tarde', 'Turno Noche'
+  final String startTime; // '08:30'
+  final String endTime; // '12:30'
+  final bool enabled;
+
+  EventShift({
+    required this.name,
+    required this.label,
+    required this.startTime,
+    required this.endTime,
+    this.enabled = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'label': label,
+    'start_time': startTime,
+    'end_time': endTime,
+    'enabled': enabled,
+  };
+
+  factory EventShift.fromJson(Map<String, dynamic> json) => EventShift(
+    name: json['name']?.toString() ?? '',
+    label: json['label']?.toString() ?? '',
+    startTime: json['start_time']?.toString() ?? json['startTime']?.toString() ?? '',
+    endTime: json['end_time']?.toString() ?? json['endTime']?.toString() ?? '',
+    enabled: json['enabled'] != false,
+  );
+}
+
 class EventAttendeeModel {
   final String id;
   final String userId;
@@ -91,9 +123,15 @@ class EventAttendeeModel {
   final String? userDepartment;
   final String? documentNumber;
   final String? phoneNumber;
+  final String? gender;
+  final int? age;
+  final String? career;
+  final String? institution;
   final bool isExternal;
   final DateTime registeredAt;
   final String? notes;
+  final String? shift;
+  final String? photoUrl;
 
   EventAttendeeModel({
     required this.id,
@@ -104,9 +142,15 @@ class EventAttendeeModel {
     this.userDepartment,
     this.documentNumber,
     this.phoneNumber,
+    this.gender,
+    this.age,
+    this.career,
+    this.institution,
     this.isExternal = false,
     required this.registeredAt,
     this.notes,
+    this.shift,
+    this.photoUrl,
   });
 
   factory EventAttendeeModel.fromJson(Map<String, dynamic> json) {
@@ -119,6 +163,10 @@ class EventAttendeeModel {
       userDepartment: json['user_department']?.toString() ?? json['userDepartment']?.toString(),
       documentNumber: json['document_number']?.toString() ?? json['documentNumber']?.toString() ?? json['dni']?.toString(),
       phoneNumber: json['phone_number']?.toString() ?? json['phoneNumber']?.toString() ?? json['telefono']?.toString(),
+      gender: json['gender']?.toString() ?? json['sexo']?.toString(),
+      age: (json['age'] as num?)?.toInt() ?? (json['edad'] as num?)?.toInt(),
+      career: json['career']?.toString() ?? json['carrera']?.toString(),
+      institution: json['institution']?.toString() ?? json['institucion']?.toString() ?? json['user_department']?.toString(),
       isExternal: json['is_external'] == true || json['isExternal'] == true,
       registeredAt: json['registered_at'] != null
           ? (DateTime.tryParse(json['registered_at'].toString())?.toLocal() ?? DateTime.now())
@@ -126,6 +174,11 @@ class EventAttendeeModel {
               ? (DateTime.tryParse(json['registeredAt'].toString())?.toLocal() ?? DateTime.now())
               : DateTime.now()),
       notes: json['notes']?.toString(),
+      shift: json['shift']?.toString(),
+      photoUrl: json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['user_photo']?.toString() ??
+          json['avatar_url']?.toString(),
     );
   }
 
@@ -139,9 +192,15 @@ class EventAttendeeModel {
       'user_department': userDepartment,
       'document_number': documentNumber,
       'phone_number': phoneNumber,
+      'gender': gender,
+      'age': age,
+      'career': career,
+      'institution': institution,
       'is_external': isExternal,
       'registered_at': registeredAt.toIso8601String(),
       'notes': notes,
+      'shift': shift,
+      'photo_url': photoUrl,
     };
   }
 }
@@ -163,6 +222,10 @@ class EventModel {
   final EventStatus status;
   final int attendeesCount;
   final List<EventAttendeeModel> attendees;
+  final List<String> managerIds;
+  final String? organizationalUnit;
+  final List<EventShift> shifts;
+  final String? imageUrl;
 
   EventModel({
     required this.id,
@@ -181,7 +244,19 @@ class EventModel {
     this.status = EventStatus.UPCOMING,
     this.attendeesCount = 0,
     this.attendees = const [],
+    this.managerIds = const [],
+    this.organizationalUnit,
+    this.shifts = const [],
+    this.imageUrl,
   });
+
+  bool canUserManageEvent(String? userId, String? userRole) {
+    if (userId == null) return false;
+    final r = (userRole ?? '').toUpperCase();
+    if (r == 'SUPERADMIN' || r == 'ADMIN' || r == 'SUPERVISOR' || r == 'ADMIN_EVENTO') return true;
+    if (createdById == userId) return true;
+    return managerIds.contains(userId);
+  }
 
   bool get isActiveNow {
     final now = DateTime.now();
@@ -202,6 +277,7 @@ class EventModel {
           .whereType<Map<String, dynamic>>()
           .map((item) => EventAttendeeModel.fromJson(item))
           .toList();
+      attendeesList.sort((a, b) => a.registeredAt.compareTo(b.registeredAt));
     }
 
     final start = json['start_date'] != null
@@ -215,6 +291,24 @@ class EventModel {
         : (json['endDate'] != null
             ? (DateTime.tryParse(json['endDate'].toString())?.toLocal() ?? start.add(const Duration(hours: 1)))
             : start.add(const Duration(hours: 1)));
+
+    // Parse manager_ids (simple-array or list)
+    List<String> parsedManagerIds = [];
+    var rawShifts = json['shifts'];
+    List<EventShift> parsedShifts = [];
+    if (rawShifts is List) {
+      parsedShifts = rawShifts
+          .whereType<Map<String, dynamic>>()
+          .map((item) => EventShift.fromJson(item))
+          .toList();
+    }
+
+    final rawManagers = json['manager_ids'] ?? json['managerIds'];
+    if (rawManagers is List) {
+      parsedManagerIds = rawManagers.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+    } else if (rawManagers is String && rawManagers.trim().isNotEmpty) {
+      parsedManagerIds = rawManagers.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
 
     return EventModel(
       id: json['id']?.toString() ?? '',
@@ -239,6 +333,17 @@ class EventModel {
           (json['attendeesCount'] as num?)?.toInt() ??
           attendeesList.length,
       attendees: attendeesList,
+      managerIds: parsedManagerIds,
+      organizationalUnit: json['organizational_unit']?.toString() ?? json['organizationalUnit']?.toString(),
+      shifts: parsedShifts,
+      imageUrl: json['image_url']?.toString() ??
+          json['imageUrl']?.toString() ??
+          json['cover_image']?.toString() ??
+          json['coverImage']?.toString() ??
+          json['image']?.toString() ??
+          json['photo_url']?.toString() ??
+          json['photoUrl']?.toString() ??
+          json['banner_url']?.toString(),
     );
   }
 
@@ -260,6 +365,10 @@ class EventModel {
       'status': status.name,
       'attendees_count': attendeesCount,
       'attendees': attendees.map((a) => a.toJson()).toList(),
+      'manager_ids': managerIds,
+      'organizational_unit': organizationalUnit,
+      'shifts': shifts.map((s) => s.toJson()).toList(),
+      'image_url': imageUrl,
     };
   }
 
@@ -280,6 +389,10 @@ class EventModel {
     EventStatus? status,
     int? attendeesCount,
     List<EventAttendeeModel>? attendees,
+    List<String>? managerIds,
+    String? organizationalUnit,
+    List<EventShift>? shifts,
+    String? imageUrl,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -298,6 +411,45 @@ class EventModel {
       status: status ?? this.status,
       attendeesCount: attendeesCount ?? this.attendeesCount,
       attendees: attendees ?? this.attendees,
+      managerIds: managerIds ?? this.managerIds,
+      organizationalUnit: organizationalUnit ?? this.organizationalUnit,
+      shifts: shifts ?? this.shifts,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is EventModel &&
+        other.id == id &&
+        other.title == title &&
+        other.description == description &&
+        other.location == location &&
+        other.startDate == startDate &&
+        other.endDate == endDate &&
+        other.type == type &&
+        other.status == status &&
+        other.imageUrl == imageUrl &&
+        other.attendeesCount == attendeesCount &&
+        other.attendees.length == attendees.length &&
+        other.managerIds.length == managerIds.length &&
+        other.shifts.length == shifts.length;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        title,
+        description,
+        location,
+        startDate,
+        endDate,
+        type,
+        status,
+        imageUrl,
+        attendeesCount,
+        attendees.length,
+        managerIds.length,
+      );
 }

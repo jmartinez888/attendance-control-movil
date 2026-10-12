@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/storage_service.dart';
-import '../services/auth_service.dart';
 import '../widgets/leaf_logo.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
@@ -14,46 +13,68 @@ class SplashGateScreen extends StatefulWidget {
   State<SplashGateScreen> createState() => _SplashGateScreenState();
 }
 
-class _SplashGateScreenState extends State<SplashGateScreen> {
+class _SplashGateScreenState extends State<SplashGateScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _opacityAnimation;
+  bool _hasNavigated = false;
+
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeIn),
+    );
+
+    _animController.forward();
+    _initAppAndNavigate();
   }
 
-  Future<void> _checkAuth() async {
-    // Pausa breve para una transición visual impecable
-    await Future.delayed(const Duration(milliseconds: 300));
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initAppAndNavigate() async {
+    // Permitir al usuario ver el splash institucional de IIAP con fluidez (~700ms)
+    // mientras en paralelo se verifica la sesión en disco
+    final startTime = DateTime.now();
 
     final user = StorageService.currentUser;
-    final token = await StorageService.getToken();
+    final token = StorageService.tokenSync ?? await StorageService.getToken();
 
-    // SESIÓN PERMANENTE (Estilo redes sociales):
-    // Si el usuario ya tiene sesión iniciada, entra SIEMPRE Y DIRECTAMENTE al Home.
-    // Nunca se le pide volver a loguearse por inactividad o tiempo transcurrido.
-    if (user != null || (token != null && token.isNotEmpty)) {
-      if (mounted) {
-        _navigateTo(const HomeScreen());
-      }
-      // De forma transparente y no bloqueante en segundo plano, refrescar datos
-      unawaited(() async {
-        try {
-          await AuthService.getProfile();
-        } catch (_) {}
-      }());
-      return;
+    final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+    const minSplashDuration = 700;
+    if (elapsed < minSplashDuration) {
+      await Future.delayed(Duration(milliseconds: minSplashDuration - elapsed));
     }
 
-    // Solo si el usuario nunca ha iniciado sesión o cerró sesión voluntariamente, va al login
-    if (mounted) {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+
+    // Si hay usuario o token guardado localmente, se va al HomeScreen de forma instantánea.
+    if (user != null || (token != null && token.isNotEmpty)) {
+      _navigateTo(const HomeScreen());
+    } else {
       _navigateTo(const LoginScreen());
     }
   }
 
   void _navigateTo(Widget targetScreen) {
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 220),
+        transitionDuration: const Duration(milliseconds: 350),
         pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -72,50 +93,65 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
         systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF2B542E),
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0.0, -0.05),
-              radius: 1.15,
-              colors: [
-                Color(0xFF4C8050), // Centro verde luminoso
-                Color(0xFF3F6C42), // Verde medio institucional
-                Color(0xFF234B26), // Transición a verde oscuro
-                Color(0xFF133215), // Verde profundo
-                Color(0xFF0C240E), // Base inferior oscura
-              ],
-              stops: [0.0, 0.35, 0.65, 0.88, 1.0],
+        backgroundColor: const Color(0xFF133215),
+        body: RepaintBoundary(
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF3F6C42), // Verde medio superior
+                  Color(0xFF2B542E), // Verde institucional
+                  Color(0xFF1B431E), // Transición
+                  Color(0xFF0F2B12), // Verde base
+                ],
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Stack(
-              children: [
-                // Logo central IIAP
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const LeafLogo(
-                        size: 46,
-                        color: Color(0xFF98E28D),
-                      ),
-                      const SizedBox(width: 14),
-                      const Text(
-                        'IIAP',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 46,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  // Logo central IIAP
+                  Center(
+                    child: FadeTransition(
+                      opacity: _opacityAnimation,
+                      child: ScaleTransition(
+                        scale: _scaleAnimation,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const LeafLogo(size: 84),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'IIAP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 3.0,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
 
                 // Pie de página institucional
                 Align(
@@ -161,6 +197,7 @@ class _SplashGateScreenState extends State<SplashGateScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

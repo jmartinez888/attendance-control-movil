@@ -31,7 +31,7 @@ class AttendanceCard extends StatelessWidget {
     final timeStr = _formatTime(record.timestamp);
     final dateStr = _formatDate(record.timestamp);
 
-    // Horario y evaluación dinámica asignada al usuario
+    // Horario y evaluaciÃ³n dinÃ¡mica asignada al usuario
     final schedule = ScheduleService.getSchedule(record.userId);
     final evaluation = schedule.evaluateAttendance(record.timestamp, isCheckIn);
     final isPunctual = isCheckIn ? (record.status == AttendanceStatus.ON_TIME) : true;
@@ -392,12 +392,12 @@ class AttendanceCard extends StatelessWidget {
             _buildDetailRow('Tipo de Marca:', record.type.label, isDark),
             _buildDetailRow('Hora Registrada:', _formatTime(record.timestamp), isDark),
             _buildDetailRow('Fecha:', _formatDate(record.timestamp), isDark),
-            _buildDetailRow('Horario:', '08:00 AM - 05:00 PM', isDark),
-            _buildDetailRow('Tolerancia de Entrada:', 'Hasta las 08:30 AM', isDark),
+            _buildDetailRow('Horario:', schedule.timeRangeFormatted12h, isDark),
+            _buildDetailRow('Tolerancia de Entrada:', 'Hasta las ${schedule.toleranceLimitFormatted}', isDark),
             if (record.isManual)
-              _buildDetailRow('Modalidad:', 'Marcación Manual de Emergencia', isDark, highlightColor: Colors.amber),
+              _buildDetailRow('Modalidad:', 'MarcaciÃ³n Manual de Emergencia', isDark, highlightColor: Colors.amber),
             if (record.observation != null && record.observation!.isNotEmpty)
-              _buildDetailRow('Justificación / Motivo:', record.observation!, isDark),
+              _buildDetailRow('JustificaciÃ³n / Motivo:', record.observation!, isDark),
             _buildDetailRow(
               'Puntualidad:',
               record.type == AttendanceType.CHECK_IN
@@ -469,3 +469,4 @@ class AttendanceCard extends StatelessWidget {
     return '$day/$month/$year';
   }
 }
+

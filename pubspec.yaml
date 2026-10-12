@@ -27,6 +27,11 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.0
   connectivity_plus: ^6.1.1
+  url_launcher: ^6.3.2
+  timezone: ^0.9.4
+  local_notifier: ^0.1.6
+  cached_network_image: ^3.4.1
+  camera: ^0.11.0+2
 
 dev_dependencies:
   flutter_test:
@@ -37,10 +42,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
+  windows: true
   image_path: "assets/app_icon.jpg"
 
 flutter:
   uses-material-design: true
   assets:
+    - assets/app_icon.jpg
     - assets/images/
     - assets/images/wallpapers/

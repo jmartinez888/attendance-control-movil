@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../models/user_model.dart';
 import 'api_client.dart';
 import 'storage_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   static Future<UserModel> login({
@@ -113,14 +118,158 @@ class AuthService {
     }
   }
 
+  /// Valida o refresca el token en segundo plano de manera no bloqueante.
+  /// Si el backend responde 401/403 (sesión revocada o credenciales cambiadas) y falla el re-login silencioso,
+  /// limpia la sesión y retorna false para que la app redirija al login.
+  /// Si el dispositivo no tiene internet o hay un error de red/servidor, retorna true y mantiene la sesión offline.
+  static Future<bool> validateSessionInBackground() async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        return false;
+      }
+
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.authMe),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final user = UserModel.fromJson(data);
+        final String? currentPhoto = StorageService.currentUser?.photoUrl;
+        final String? effectivePhoto = (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty)
+            ? user.photoUrl
+            : ((currentPhoto != null && currentPhoto.trim().isNotEmpty) ? currentPhoto : null);
+        final preservedUser = user.copyWith(photoUrl: effectivePhoto);
+        await StorageService.updateCurrentUser(preservedUser);
+        return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        final reauthenticated = await trySilentRelogin();
+        if (reauthenticated) {
+          return true;
+        }
+        // Preservar la sesión localmente estilo redes sociales (no cerrar sesión automáticamente)
+        return false;
+      }
+
+      // Códigos de error de servidor (500, 502, etc.): preservar sesión offline
+      return true;
+    } on SocketException {
+      // Dispositivo offline: preservar sesión localmente
+      return true;
+    } on http.ClientException {
+      return true;
+    } on TimeoutException {
+      return true;
+    } catch (e) {
+      debugPrint('validateSessionInBackground ignorado por offline/red: $e');
+      return true;
+    }
+  }
+
   static Future<UserModel> getProfile() async {
     final response = await ApiClient.get(ApiConfig.authMe);
     final user = UserModel.fromJson(response as Map<String, dynamic>);
-    await StorageService.updateCurrentUser(user);
-    return user;
+    final String? currentPhoto = StorageService.currentUser?.photoUrl;
+    final String? effectivePhoto = (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty)
+        ? user.photoUrl
+        : ((currentPhoto != null && currentPhoto.trim().isNotEmpty) ? currentPhoto : null);
+    final preservedUser = user.copyWith(photoUrl: effectivePhoto);
+    await StorageService.updateCurrentUser(preservedUser);
+    return preservedUser;
+  }
+
+  static String? get _configuredClientId {
+    if (kIsWeb) return ApiConfig.googleServerClientId;
+    try {
+      if (Platform.isIOS) return ApiConfig.googleIosClientId;
+    } catch (_) {}
+    return null;
+  }
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: _configuredClientId,
+    serverClientId: ApiConfig.googleServerClientId,
+    scopes: ['email', 'profile'],
+  );
+
+  /// Inicia sesion o registra al usuario mediante Google OAuth2 con blindaje multiplataforma
+  static Future<UserModel?> loginWithGoogle() async {
+    // 1. Validar compatibilidad en plataformas de escritorio (Windows, Linux, macOS)
+    if (!kIsWeb) {
+      try {
+        if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+          throw ApiException(
+            'El inicio de sesión directo con Google está disponible en móviles (Android / iOS) y Web. En PC/Laptop de escritorio, por favor inicia sesión con tu correo o DNI y contraseña.',
+          );
+        }
+      } catch (e) {
+        if (e is ApiException) rethrow;
+      }
+    }
+
+    try {
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null; // Cancelado por el usuario
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw ApiException('No se pudo obtener el token de verificación de Google. Inténtalo nuevamente.');
+      }
+      final response = await ApiClient.post(
+        ApiConfig.authGoogle,
+        body: {'idToken': idToken},
+        requiresAuth: false,
+      );
+      final token = response['access_token']?.toString() ?? '';
+      final userJson = response['user'] as Map<String, dynamic>;
+      final user = UserModel.fromJson(userJson);
+      await StorageService.saveSession(
+        token: token,
+        user: user,
+        email: user.email,
+      );
+      return user;
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      final errorStr = e.toString();
+      debugPrint('Error en login con Google: ');
+      if (errorStr.contains('10') || errorStr.contains('DEVELOPER_ERROR')) {
+        throw ApiException(
+          'Configuración de Google no reconocida (SHA-1 no registrado para este dispositivo). Ingrese con correo o DNI y contraseña.',
+        );
+      }
+      if (errorStr.contains('12500') || errorStr.contains('SIGN_IN_FAILED')) {
+        throw ApiException(
+          'No se pudo iniciar sesión con Google en este dispositivo. Verifica que tenga Servicios de Google Play actualizados o una cuenta de Google activa.',
+        );
+      }
+      if (errorStr.contains('network') || errorStr.contains('SocketException') || errorStr.contains('Failed to connect')) {
+        throw ApiException(
+          'Error de red al conectar con Google. Verifica tu conexión a internet.',
+        );
+      }
+      if (errorStr.contains('MissingPluginException')) {
+        throw ApiException(
+          'Esta plataforma no admite el botón de Google. Inicia sesión con tu correo o DNI y contraseña.',
+        );
+      }
+      throw ApiException('Error al iniciar sesión con Google: ${errorStr.replaceAll('Exception:', '').replaceAll('PlatformException(', '').trim()}');
+    }
   }
 
   static Future<void> logout() async {
+    try { await _googleSignIn.signOut(); } catch (_) {}
     await StorageService.clearSession();
   }
 
@@ -266,83 +415,32 @@ class AuthService {
     return 'Tu cuenta ha sido eliminada con éxito de la base de datos.';
   }
 
-  /// 4. Cambiar contraseña estando autenticado
+  /// 4. Cambiar contraseña estando autenticado (POST /api/auth/change-password)
   static Future<String> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
     final currentUser = StorageService.currentUser;
-    final userId = currentUser?.id ?? '';
-
     final body = {
       'current_password': currentPassword,
-      'currentPassword': currentPassword,
       'new_password': newPassword,
-      'newPassword': newPassword,
-      'password': newPassword,
     };
 
     dynamic response;
-
-    // 1. Intentar PATCH /api/users/me solo con {'password': newPassword} (DTO limpio para NestJS ValidationPipe)
     try {
-      response = await ApiClient.patch(
-        ApiConfig.usersMe,
-        body: {'password': newPassword},
+      response = await ApiClient.post(
+        ApiConfig.authChangePassword,
+        body: body,
       );
-    } catch (e1) {
-      // 2. Intentar PATCH /api/users/me con password y currentPassword
+    } catch (e) {
+      // Fallback a PATCH /api/users/me solo si falla
       try {
         response = await ApiClient.patch(
           ApiConfig.usersMe,
-          body: {'password': newPassword, 'currentPassword': currentPassword},
+          body: {'password': newPassword},
         );
-      } catch (e2) {
-        // 3. Intentar PATCH /api/users/:id con {'password': newPassword}
-        if (userId.isNotEmpty) {
-          try {
-            response = await ApiClient.patch(
-              ApiConfig.userById(userId),
-              body: {'password': newPassword},
-            );
-          } catch (e3) {
-            // 4. Intentar PATCH /api/users/me/password
-            try {
-              response = await ApiClient.patch(
-                '${ApiConfig.baseUrl}/users/me/password',
-                body: body,
-              );
-            } catch (e4) {
-              // 5. Intentar POST /api/auth/change-password
-              try {
-                response = await ApiClient.post(
-                  '${ApiConfig.baseUrl}/auth/change-password',
-                  body: body,
-                );
-              } catch (e5) {
-                // 6. Intentar POST /api/users/me/change-password
-                try {
-                  response = await ApiClient.post(
-                    '${ApiConfig.baseUrl}/users/me/change-password',
-                    body: body,
-                  );
-                } catch (e6) {
-                  if (currentUser != null) {
-                    await StorageService.updateCurrentUser(currentUser);
-                    return 'Contraseña actualizada exitosamente.';
-                  }
-                  rethrow;
-                }
-              }
-            }
-          }
-        } else {
-          if (currentUser != null) {
-            await StorageService.updateCurrentUser(currentUser);
-            return 'Contraseña actualizada exitosamente.';
-          }
-          rethrow;
-        }
+      } catch (_) {
+        rethrow;
       }
     }
 

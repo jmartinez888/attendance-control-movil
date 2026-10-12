@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.control_asistencia"
+        // ID de la aplicación que coincide con Google Cloud Console
+        applicationId = "pe.gob.iiap.attendance"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -46,4 +46,24 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+tasks.register("renameReleaseApk") {
+    doLast {
+        val apkDir = file("${layout.buildDirectory.get()}/outputs/flutter-apk")
+        val defaultApk = file("$apkDir/app-release.apk")
+        val namedApk = file("$apkDir/Control Asistencia.apk")
+        if (defaultApk.exists()) {
+            defaultApk.copyTo(namedApk, overwrite = true)
+            val rootApk = file("${rootDir}/../Control Asistencia.apk")
+            defaultApk.copyTo(rootApk, overwrite = true)
+            println("=== APK renombrado exitosamente como 'Control Asistencia.apk' ===")
+            println("Ubicación 1: ${namedApk.absolutePath}")
+            println("Ubicación 2: ${rootApk.absolutePath}")
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy("renameReleaseApk")
 }

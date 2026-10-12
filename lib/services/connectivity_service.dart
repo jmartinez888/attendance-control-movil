@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -37,22 +37,21 @@ class ConnectivityService {
       return;
     }
 
-    // Verificar conectividad real a través de DNS
-    try {
-      final lookup = await InternetAddress.lookup('dns.google')
-          .timeout(const Duration(seconds: 2));
-      if (lookup.isNotEmpty && lookup[0].rawAddress.isNotEmpty) {
-        isOnlineNotifier.value = true;
-      } else {
-        isOnlineNotifier.value = false;
+    // Respuesta instantánea (0 ms) para no frenar el inicio de la app
+    isOnlineNotifier.value = true;
+
+    // Verificación DNS secundaria en segundo plano sin congelar el hilo principal
+    unawaited(() async {
+      try {
+        final lookup = await InternetAddress.lookup('dns.google')
+            .timeout(const Duration(seconds: 2));
+        if (lookup.isNotEmpty && lookup[0].rawAddress.isNotEmpty) {
+          isOnlineNotifier.value = true;
+        }
+      } catch (_) {
+        // No marcamos offline agresivamente durante el arranque
       }
-    } on SocketException catch (_) {
-      isOnlineNotifier.value = false;
-    } on TimeoutException catch (_) {
-      isOnlineNotifier.value = false;
-    } catch (_) {
-      isOnlineNotifier.value = false;
-    }
+    }());
   }
 
   static void dispose() {

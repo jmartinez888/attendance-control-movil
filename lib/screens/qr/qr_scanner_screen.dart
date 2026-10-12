@@ -17,6 +17,7 @@ enum ScanTarget {
   attendance,
   supervisorPromotion,
   eventAttendance,
+  roleAssignment,
 }
 
 class QrScannerScreen extends StatefulWidget {
@@ -90,9 +91,24 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         String? targetEventId = widget.eventId;
         if (targetEventId == null) {
           if (cleanCode.startsWith('IIAP-EVT-')) {
-            final parts = cleanCode.split('-');
-            if (parts.length >= 3) {
-              targetEventId = parts[2];
+            final withoutPrefix = cleanCode.substring('IIAP-EVT-'.length);
+            final withoutQuery = withoutPrefix.split('?').first;
+
+            // 1. Buscar en la lista de eventos en memoria
+            final events = EventService.eventsNotifier.value;
+            for (final ev in events) {
+              if (ev.id == withoutQuery ||
+                  withoutQuery.startsWith(ev.id) ||
+                  ev.id.startsWith(withoutQuery) ||
+                  (ev.qrCode != null && (ev.qrCode == cleanCode || cleanCode.contains(ev.qrCode!)))) {
+                targetEventId = ev.id;
+                break;
+              }
+            }
+            // 2. Si tiene sufijo (ej: evt_123_456-1728399), extraer el ID real del evento
+            if (targetEventId == null) {
+              final match = RegExp(r'^(evt_\d+_\d+)').firstMatch(withoutQuery);
+              targetEventId = match != null ? match.group(1) : withoutQuery;
             }
           } else if (hasEventIdParam) {
             targetEventId = uri.queryParameters['id'] ?? uri.queryParameters['event_id'];
@@ -114,9 +130,22 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         }
 
         if (targetEventId != null) {
+          String? shiftParam;
+          if (cleanCode.contains('shift=')) {
+            if (uri != null && uri.queryParameters.containsKey('shift')) {
+              shiftParam = uri.queryParameters['shift'];
+            } else {
+              final shiftMatch = RegExp(r'shift=([a-zA-Z0-9_-]+)').firstMatch(cleanCode);
+              if (shiftMatch != null) {
+                shiftParam = shiftMatch.group(1);
+              }
+            }
+          }
+
           final updatedEvent = await EventService.registerAttendance(
             eventId: targetEventId,
             qrCode: cleanCode,
+            shift: shiftParam,
           );
           if (!mounted) return;
           await _showSuccessDialog(
@@ -134,7 +163,28 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         }
       }
 
-      // 1. Si el target es explícitamente supervisorPromotion
+      // 1. Asignación de Roles o Gestor de Eventos por QR (IIAP-ASSIGN-)
+      if (cleanCode.startsWith('IIAP-ASSIGN-') || widget.target == ScanTarget.roleAssignment) {
+        final result = await AttendanceService.scanAssignmentQr(cleanCode);
+        await AuthService.getProfile();
+        if (!mounted) return;
+        final roleName = result['new_role'] ?? result['role'] ?? 'Asignado';
+        final eventTitle = result['event_title'];
+        String msg = '¡Tu nuevo rol institucional es $roleName!';
+        if (eventTitle != null && eventTitle.toString().isNotEmpty) {
+          msg += '\nHas sido designado exitosamente como Gestor del evento:\n"$eventTitle".';
+        }
+        await _showSuccessDialog(
+          title: '¡Designación Confirmada!',
+          message: msg,
+          detail: 'Usuario: ${StorageService.currentUser?.fullName ?? ""}',
+          isShaVerified: true,
+        );
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      }
+
+      // 1.1 Si el target es explícitamente supervisorPromotion
       if (widget.target == ScanTarget.supervisorPromotion) {
         final result = await AttendanceService.scanSupervisorQr(cleanCode);
         await AuthService.getProfile();
@@ -399,7 +449,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Comenzar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              child: const Text('Aceptar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
           ),
         ],

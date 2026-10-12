@@ -1,11 +1,11 @@
-enum ScheduleType {
+﻿enum ScheduleType {
   institucional,
   personalizado;
 
   String get displayName {
     switch (this) {
       case ScheduleType.institucional:
-        return 'Horario Institucional (08:00 - 17:00)';
+        return 'Horario Institucional (08:00 AM - 05:00 PM)';
       case ScheduleType.personalizado:
         return 'Horario Personalizado';
     }
@@ -69,6 +69,17 @@ class ScheduleModel {
     this.updatedByName,
   });
 
+  /// Normaliza horas ambiguas del formato 12h a horario institucional 24h
+  static int normalizeHour(int hour, {bool isCheckOut = false}) {
+    if (!isCheckOut && hour >= 1 && hour <= 6) {
+      return hour + 12; // Entrada de 1:00 a 6:00 pm -> 13:00 a 18:00
+    }
+    if (isCheckOut && hour >= 1 && hour <= 11) {
+      return hour + 12; // Salida de 1:00 a 11:00 pm -> 13:00 a 23:00
+    }
+    return hour;
+  }
+
   /// Crea un horario predeterminado según el tipo
   factory ScheduleModel.defaultForType({
     required String userId,
@@ -93,36 +104,54 @@ class ScheduleModel {
     return ScheduleModel.defaultForType(userId: userId, type: ScheduleType.institucional);
   }
 
-  String _formatTime(int hour, int minute) {
+  static String _formatTime24(int hour, int minute) {
     final hStr = hour.toString().padLeft(2, '0');
     final mStr = minute.toString().padLeft(2, '0');
     return '$hStr:$mStr';
   }
 
-  String get checkInTimeFormatted => _formatTime(checkInHour, checkInMinute);
-  String get checkOutTimeFormatted => _formatTime(checkOutHour, checkOutMinute);
+  static String _formatTime12(int hour, int minute) {
+    final h = hour % 12 == 0 ? 12 : hour % 12;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final hStr = h.toString().padLeft(2, '0');
+    final mStr = minute.toString().padLeft(2, '0');
+    return '$hStr:$mStr $period';
+  }
+
+  String get checkInTimeFormatted => _formatTime24(checkInHour, checkInMinute);
+  String get checkOutTimeFormatted => _formatTime24(checkOutHour, checkOutMinute);
+
+  String get checkInTimeFormatted12h => _formatTime12(checkInHour, checkInMinute);
+  String get checkOutTimeFormatted12h => _formatTime12(checkOutHour, checkOutMinute);
 
   String get timeRangeFormatted => '$checkInTimeFormatted - $checkOutTimeFormatted';
+  String get timeRangeFormatted12h => '$checkInTimeFormatted12h - $checkOutTimeFormatted12h';
 
-  /// Etiqueta completa ej: "Horario Institucional (08:00 - 17:00)"
+  /// Hora límite de tolerancia formateada en 12h (ej. '08:30 AM' o '03:00 PM')
+  String get toleranceLimitFormatted {
+    final effectiveInH = (type == ScheduleType.personalizado && checkInHour >= 1 && checkInHour <= 6)
+        ? checkInHour + 12
+        : checkInHour;
+    final totalTolMins = effectiveInH * 60 + checkInMinute + toleranceMinutes;
+    final tolH = (totalTolMins ~/ 60) % 24;
+    final tolM = totalTolMins % 60;
+    return _formatTime12(tolH, tolM);
+  }
+
+  /// Etiqueta completa ej: "Horario Institucional (08:00 AM - 05:00 PM)" o "Horario Personalizado (02:30 PM - 07:00 PM)"
   String get fullLabel {
     if (type == ScheduleType.personalizado) {
-      return 'Horario Personalizado ($timeRangeFormatted)';
+      return 'Horario Personalizado ($timeRangeFormatted12h)';
     }
-    return 'Horario Institucional ($timeRangeFormatted)';
+    return 'Horario Institucional (08:00 AM - 05:00 PM)';
   }
 
-  /// Etiqueta corta ej: "08:00 - 17:00 • Institucional"
+  /// Etiqueta corta ej: "02:30 PM - 07:00 PM • Personalizado"
   String get shortLabel {
-    return '$timeRangeFormatted • ${type.categoryName}';
+    return '$timeRangeFormatted12h • ${type.categoryName}';
   }
 
-  /// Evalúa la puntualidad de la marca de asistencia
-  /// - Hora oficial: 08:00 AM
-  /// - Tolerancia: 30 minutos (hasta las 08:30 AM)
-  /// - Antes de las 08:00 o entre 08:00 y 08:30 -> A tiempo
-  /// - Después de las 08:30 (ej. 08:31 hasta 13:00 o posterior) -> Tarde
-  /// - Salida -> Salida
+  /// Evalúa la puntualidad de la marca de asistencia considerando la hora normalizada a 24h
   ScheduleEvaluation evaluateAttendance(DateTime timestamp, bool isCheckIn) {
     if (!isCheckIn) {
       return ScheduleEvaluation(
@@ -135,27 +164,33 @@ class ScheduleModel {
 
     final local = timestamp.toLocal();
     final actualMinutes = local.hour * 60 + local.minute;
-    final entryLimitMinutes = checkInHour * 60 + checkInMinute + toleranceMinutes;
+
+    final effectiveInH = (type == ScheduleType.personalizado && checkInHour >= 1 && checkInHour <= 6)
+        ? checkInHour + 12
+        : checkInHour;
+    final entryLimitMinutes = effectiveInH * 60 + checkInMinute + toleranceMinutes;
 
     final punctual = actualMinutes <= entryLimitMinutes;
 
     return ScheduleEvaluation(
       shiftLabel: fullLabel,
       isPunctual: punctual,
-      minutesLate: 0, // Sin contador de minutos
+      minutesLate: 0,
       shiftType: type.name,
     );
   }
 
-  /// Evalúa si una marca de entrada fue a tiempo considerando la tolerancia de 30 min (hasta 08:30)
+  /// Evalúa si una marca de entrada fue a tiempo
   bool isPunctual(DateTime checkInDateTime) {
     final local = checkInDateTime.toLocal();
-    final entryLimitMinutes = checkInHour * 60 + checkInMinute + toleranceMinutes;
+    final effectiveInH = (type == ScheduleType.personalizado && checkInHour >= 1 && checkInHour <= 6)
+        ? checkInHour + 12
+        : checkInHour;
+    final entryLimitMinutes = effectiveInH * 60 + checkInMinute + toleranceMinutes;
     final actualMinutes = local.hour * 60 + local.minute;
     return actualMinutes <= entryLimitMinutes;
   }
 
-  /// Ya no se manejan minutos de tardanza
   int minutesLate(DateTime checkInDateTime) => 0;
 
   Map<String, dynamic> toJson() {
@@ -186,13 +221,23 @@ class ScheduleModel {
       parsedType = ScheduleType.institucional;
     }
 
+    int rawInH = (json['check_in_hour'] as num?)?.toInt() ?? 8;
+    int rawInM = (json['check_in_minute'] as num?)?.toInt() ?? 0;
+    int rawOutH = (json['check_out_hour'] as num?)?.toInt() ?? 17;
+    int rawOutM = (json['check_out_minute'] as num?)?.toInt() ?? 0;
+
+    if (parsedType == ScheduleType.personalizado) {
+      rawInH = normalizeHour(rawInH, isCheckOut: false);
+      rawOutH = normalizeHour(rawOutH, isCheckOut: true);
+    }
+
     return ScheduleModel(
       userId: json['user_id']?.toString() ?? '',
       type: parsedType,
-      checkInHour: (json['check_in_hour'] as num?)?.toInt() ?? 8,
-      checkInMinute: (json['check_in_minute'] as num?)?.toInt() ?? 0,
-      checkOutHour: (json['check_out_hour'] as num?)?.toInt() ?? 17,
-      checkOutMinute: (json['check_out_minute'] as num?)?.toInt() ?? 0,
+      checkInHour: rawInH,
+      checkInMinute: rawInM,
+      checkOutHour: rawOutH,
+      checkOutMinute: rawOutM,
       toleranceMinutes: (json['tolerance_minutes'] as num?)?.toInt() ?? 30,
       customNotes: json['custom_notes']?.toString(),
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
@@ -202,7 +247,7 @@ class ScheduleModel {
 
   /// Cadena compacta legible para sincronizar con el backend
   String toCompactPositionString() {
-    return 'Horario Institucional (08:00 - 17:00)';
+    return 'Horario Institucional (08:00 AM - 05:00 PM)';
   }
 
   /// Reconstruye el horario institucional
